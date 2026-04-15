@@ -5,222 +5,221 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Seated — Restaurant Visit Sign-ups</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
-  :root {
-    --bg: #F7F5F0;
-    --surface: #FFFFFF;
-    --border: #E8E4DC;
-    --border-strong: #C8C3B8;
-    --text: #1A1814;
-    --text-2: #6B6760;
-    --text-3: #9E9A94;
-    --visa-bg: #EBF3FF; --visa-text: #1A4A8A;
-    --mc-bg: #FFF4E6; --mc-text: #7A4000;
-    --amex-bg: #EDFAF3; --amex-text: #1A5C36;
-    --high-bg: #FFF0EE; --high-text: #8C2418;
-    --med-bg: #FFF8EC; --med-text: #7A4E00;
-    --norm-bg: #F0FAF4; --norm-text: #1A5C36;
-    --open-bg: #F0FAF4; --open-text: #1A5C36;
-    --claimed-bg: #FFF8EC; --claimed-text: #7A4E00;
-    --confirmed-bg: #EBF3FF; --confirmed-text: #1A4A8A;
-    --closed-bg: #F2F1EE; --closed-text: #6B6760;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+ :root {
+   --bg: #F7F5F0;
+   --surface: #FFFFFF;
+   --border: #E8E4DC;
+   --border-strong: #C8C3B8;
+   --text: #1A1814;
+   --text-2: #6B6760;
+   --text-3: #9E9A94;
+   --visa-bg: #EBF3FF; --visa-text: #1A4A8A;
+   --mc-bg: #FFF4E6; --mc-text: #7A4000;
+   --amex-bg: #EDFAF3; --amex-text: #1A5C36;
+   --high-bg: #FFF0EE; --high-text: #8C2418;
+   --med-bg: #FFF8EC; --med-text: #7A4E00;
+   --norm-bg: #F0FAF4; --norm-text: #1A5C36;
+   --open-bg: #F0FAF4; --open-text: #1A5C36;
+   --claimed-bg: #FFF8EC; --claimed-text: #7A4E00;
+   --confirmed-bg: #EBF3FF; --confirmed-text: #1A4A8A;
+   --closed-bg: #F2F1EE; --closed-text: #6B6760;
+ }
+ * { box-sizing: border-box; margin: 0; padding: 0; }
+ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
  
-  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 56px; }
-  .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
-  .logo span { color: var(--text-3); font-weight: 400; }
-  .tab-bar { display: flex; }
-  .tab { font-size: 13px; font-weight: 500; padding: 0 16px; height: 56px; display: flex; align-items: center; border: none; background: none; cursor: pointer; color: var(--text-2); border-bottom: 2px solid transparent; transition: color 0.15s; }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--text); border-bottom-color: var(--text); }
+ .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 56px; }
+ .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+ .logo span { color: var(--text-3); font-weight: 400; }
+ .tab-bar { display: flex; }
+ .tab { font-size: 13px; font-weight: 500; padding: 0 16px; height: 56px; display: flex; align-items: center; border: none; background: none; cursor: pointer; color: var(--text-2); border-bottom: 2px solid transparent; transition: color 0.15s; }
+ .tab:hover { color: var(--text); }
+ .tab.active { color: var(--text); border-bottom-color: var(--text); }
  
-  .container { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
+ .container { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
  
-  .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; white-space: nowrap; font-family: 'DM Mono', monospace; }
-  .b-visa { background: var(--visa-bg); color: var(--visa-text); }
-  .b-mc { background: var(--mc-bg); color: var(--mc-text); }
-  .b-amex { background: var(--amex-bg); color: var(--amex-text); }
-  .b-high { background: var(--high-bg); color: var(--high-text); }
-  .b-med { background: var(--med-bg); color: var(--med-text); }
-  .b-norm { background: var(--norm-bg); color: var(--norm-text); }
-  .b-open { background: var(--open-bg); color: var(--open-text); }
-  .b-claimed { background: var(--claimed-bg); color: var(--claimed-text); }
-  .b-confirmed { background: var(--confirmed-bg); color: var(--confirmed-text); }
-  .b-closed { background: var(--closed-bg); color: var(--closed-text); }
+ .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; white-space: nowrap; font-family: 'DM Mono', monospace; }
+ .b-visa { background: var(--visa-bg); color: var(--visa-text); }
+ .b-mc { background: var(--mc-bg); color: var(--mc-text); }
+ .b-amex { background: var(--amex-bg); color: var(--amex-text); }
+ .b-high { background: var(--high-bg); color: var(--high-text); }
+ .b-med { background: var(--med-bg); color: var(--med-text); }
+ .b-norm { background: var(--norm-bg); color: var(--norm-text); }
+ .b-open { background: var(--open-bg); color: var(--open-text); }
+ .b-claimed { background: var(--claimed-bg); color: var(--claimed-text); }
+ .b-confirmed { background: var(--confirmed-bg); color: var(--confirmed-text); }
+ .b-closed { background: var(--closed-bg); color: var(--closed-text); }
  
-  .market-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin: 2rem 0 10px; font-family: 'DM Mono', monospace; }
+ .market-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin: 2rem 0 10px; font-family: 'DM Mono', monospace; }
  
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 8px; transition: border-color 0.15s; }
-  .card:hover { border-color: var(--border-strong); }
-  .card.taken { opacity: 0.6; }
-  .card-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-  .card-name { font-size: 14px; font-weight: 500; }
-  .card-addr { font-size: 12px; color: var(--text-2); margin-top: 3px; font-family: 'DM Mono', monospace; }
-  .card-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
-  .card-gmv { font-size: 11px; color: var(--text-3); font-family: 'DM Mono', monospace; margin-left: 2px; }
+ .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 8px; transition: border-color 0.15s; }
+ .card:hover { border-color: var(--border-strong); }
+ .card.taken { opacity: 0.6; }
+ .card-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+ .card-name { font-size: 14px; font-weight: 500; }
+ .card-addr { font-size: 12px; color: var(--text-2); margin-top: 3px; font-family: 'DM Mono', monospace; }
+ .card-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+ .card-gmv { font-size: 11px; color: var(--text-3); font-family: 'DM Mono', monospace; margin-left: 2px; }
  
-  .claim-btn { font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--text); color: #fff; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; flex-shrink: 0; }
-  .claim-btn:hover { opacity: 0.8; }
-  .claim-btn:disabled { background: var(--border); color: var(--text-3); border-color: var(--border); cursor: not-allowed; opacity: 1; }
+ .claim-btn { font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--text); color: #fff; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; flex-shrink: 0; }
+ .claim-btn:hover { opacity: 0.8; }
+ .claim-btn:disabled { background: var(--border); color: var(--text-3); border-color: var(--border); cursor: not-allowed; opacity: 1; }
  
-  .form-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-top: 1rem; }
-  .form-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-  .form-sub { font-size: 13px; color: var(--text-2); margin-bottom: 1.25rem; font-family: 'DM Mono', monospace; }
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .form-field { display: flex; flex-direction: column; gap: 5px; }
-  label { font-size: 12px; font-weight: 500; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
-  input, select { font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); outline: none; width: 100%; transition: border-color 0.15s; }
-  input:focus, select:focus { border-color: var(--text); }
-  .form-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
-  .btn-primary { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; padding: 10px 20px; border-radius: 6px; border: none; background: var(--text); color: #fff; cursor: pointer; transition: opacity 0.15s; }
-  .btn-primary:hover { opacity: 0.8; }
-  .btn-ghost { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; padding: 10px 20px; border-radius: 6px; border: 1px solid var(--border-strong); background: none; color: var(--text-2); cursor: pointer; }
-  .btn-ghost:hover { background: var(--bg); }
-  .success-banner { background: var(--open-bg); color: var(--open-text); border-radius: 6px; padding: 12px 16px; font-size: 13px; font-weight: 500; margin-top: 12px; }
+ .form-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-top: 1rem; }
+ .form-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+ .form-sub { font-size: 13px; color: var(--text-2); margin-bottom: 1.25rem; font-family: 'DM Mono', monospace; }
+ .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+ .form-field { display: flex; flex-direction: column; gap: 5px; }
+ label { font-size: 12px; font-weight: 500; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
+ input, select { font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); outline: none; width: 100%; transition: border-color 0.15s; }
+ input:focus, select:focus { border-color: var(--text); }
+ .form-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
+ .btn-primary { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; padding: 10px 20px; border-radius: 6px; border: none; background: var(--text); color: #fff; cursor: pointer; transition: opacity 0.15s; }
+ .btn-primary:hover { opacity: 0.8; }
+ .btn-ghost { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; padding: 10px 20px; border-radius: 6px; border: 1px solid var(--border-strong); background: none; color: var(--text-2); cursor: pointer; }
+ .btn-ghost:hover { background: var(--bg); }
+ .success-banner { background: var(--open-bg); color: var(--open-text); border-radius: 6px; padding: 12px 16px; font-size: 13px; font-weight: 500; margin-top: 12px; }
  
-  .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
-  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
-  .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); font-family: 'DM Mono', monospace; margin-bottom: 6px; }
-  .stat-val { font-size: 26px; font-weight: 300; color: var(--text); letter-spacing: -0.02em; }
+ .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+ .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+ .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); font-family: 'DM Mono', monospace; margin-bottom: 6px; }
+ .stat-val { font-size: 26px; font-weight: 300; color: var(--text); letter-spacing: -0.02em; }
  
-  .filter-row { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
-  .filter-row select { width: auto; font-size: 13px; padding: 7px 10px; }
+ .filter-row { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+ .filter-row select { width: auto; font-size: 13px; padding: 7px 10px; }
  
-  .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-  .admin-table th { background: var(--bg); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-family: 'DM Mono', monospace; }
-  .admin-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
-  .admin-table tr:last-child td { border-bottom: none; }
-  .admin-table tr:hover td { background: var(--bg); }
-  .action-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-strong); background: none; cursor: pointer; color: var(--text-2); margin-right: 4px; transition: background 0.15s; }
-  .action-btn:hover { background: var(--bg); color: var(--text); }
+ .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+ .admin-table th { background: var(--bg); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-family: 'DM Mono', monospace; }
+ .admin-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
+ .admin-table tr:last-child td { border-bottom: none; }
+ .admin-table tr:hover td { background: var(--bg); }
+ .action-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-strong); background: none; cursor: pointer; color: var(--text-2); margin-right: 4px; transition: background 0.15s; }
+ .action-btn:hover { background: var(--bg); color: var(--text); }
  
-  .view { display: none; }
-  .view.active { display: block; }
-  .loading { text-align: center; padding: 3rem; color: var(--text-3); font-size: 14px; }
+ .view { display: none; }
+ .view.active { display: block; }
+ .loading { text-align: center; padding: 3rem; color: var(--text-3); font-size: 14px; }
  
-  @media (max-width: 600px) {
-    .form-grid { grid-template-columns: 1fr; }
-    .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .header { padding: 0 1rem; }
-    .container { padding: 1.25rem 1rem; }
-  }
+ @media (max-width: 600px) {
+   .form-grid { grid-template-columns: 1fr; }
+   .stats-grid { grid-template-columns: repeat(2, 1fr); }
+   .header { padding: 0 1rem; }
+   .container { padding: 1.25rem 1rem; }
+ }
 </style>
 </head>
 <body>
  
 <div class="header">
-  <div class="logo">Seated <span>/ restaurant visits</span></div>
-  <div class="tab-bar">
-    <button class="tab active" onclick="switchTab('browse')">Sign up</button>
-    <button class="tab" onclick="switchTab('admin')">Admin</button>
-  </div>
+ <div class="logo">Seated <span>/ restaurant visits</span></div>
+ <div class="tab-bar">
+   <button class="tab active" onclick="switchTab('browse')">Sign up</button>
+   <button class="tab" onclick="switchTab('admin')">Admin</button>
+ </div>
 </div>
  
 <div class="container">
-  <div id="view-browse" class="view active">
-    <div id="resto-list"><div class="loading">Loading spots...</div></div>
-    <div id="claim-form-container" style="display:none;">
-      <div class="form-wrap">
-        <div class="form-title" id="form-title"></div>
-        <div class="form-sub" id="form-sub"></div>
-        <div class="form-grid">
-          <div class="form-field">
-            <label>Your name</label>
-            <input type="text" id="f-name" placeholder="Full name" />
-          </div>
-          <div class="form-field">
-            <label>Your Seated email</label>
-            <input type="email" id="f-email" placeholder="you@seated.com" />
-          </div>
-          <div class="form-field">
-            <label>Who's dining?</label>
-            <select id="f-rel">
-              <option value="">Select one</option>
-              <option>Myself</option>
-              <option>Family member</option>
-              <option>Friend</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label>Card they have</label>
-            <select id="f-card">
-              <option value="">Select one</option>
-              <option>Visa</option>
-              <option>Mastercard</option>
-              <option>Amex</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-actions">
-          <button class="btn-primary" onclick="submitClaim()">Submit claim</button>
-          <button class="btn-ghost" onclick="cancelClaim()">Cancel</button>
-        </div>
-        <div id="form-success" style="display:none;" class="success-banner">Claim submitted! Liv will confirm your assignment within 1 business day.</div>
-      </div>
-    </div>
-  </div>
+ <div id="view-browse" class="view active">
+   <div id="resto-list"><div class="loading">Loading spots...</div></div>
+   <div id="claim-form-container" style="display:none;">
+     <div class="form-wrap">
+       <div class="form-title" id="form-title"></div>
+       <div class="form-sub" id="form-sub"></div>
+       <div class="form-grid">
+         <div class="form-field">
+           <label>Your name</label>
+           <input type="text" id="f-name" placeholder="Full name" />
+         </div>
+         <div class="form-field">
+           <label>Your Seated email</label>
+           <input type="email" id="f-email" placeholder="you@seated.com" />
+         </div>
+         <div class="form-field">
+           <label>Who's dining?</label>
+           <select id="f-rel">
+             <option value="">Select one</option>
+             <option>Employee</option>
+             <option>Friend / Family of employee</option>
+           </select>
+         </div>
+         <div class="form-field">
+           <label>Cards they have (select all that apply)</label>
+           <div id="f-cards" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+             <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;"><input type="checkbox" value="Visa" style="width:auto;margin:0;"> Visa</label>
+             <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;"><input type="checkbox" value="Mastercard" style="width:auto;margin:0;"> Mastercard</label>
+             <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;"><input type="checkbox" value="Amex" style="width:auto;margin:0;"> Amex</label>
+           </div>
+         </div>
+       </div>
+       <div class="form-actions">
+         <button class="btn-primary" onclick="submitClaim()">Submit claim</button>
+         <button class="btn-ghost" onclick="cancelClaim()">Cancel</button>
+       </div>
+       <div id="form-success" style="display:none;" class="success-banner">Claim submitted! Liv will confirm your assignment within 1 business day.</div>
+     </div>
+   </div>
+ </div>
  
-  <div id="view-admin" class="view">
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-label">Total spots</div><div class="stat-val" id="stat-total">0</div></div>
-      <div class="stat-card"><div class="stat-label">Open</div><div class="stat-val" id="stat-open">0</div></div>
-      <div class="stat-card"><div class="stat-label">Claimed</div><div class="stat-val" id="stat-claimed">0</div></div>
-      <div class="stat-card"><div class="stat-label">Confirmed</div><div class="stat-val" id="stat-confirmed">0</div></div>
-    </div>
-    <div class="filter-row">
-      <select id="filter-market" onchange="renderAdmin()"><option value="">All markets</option></select>
-      <select id="filter-status" onchange="renderAdmin()">
-        <option value="">All statuses</option>
-        <option>Open</option>
-        <option>Claimed</option>
-        <option>Confirmed</option>
-        <option>Closed</option>
-      </select>
-    </div>
-    <div style="overflow-x:auto;">
-      <table class="admin-table">
-        <thead>
-          <tr>
-            <th>Restaurant</th>
-            <th>Market</th>
-            <th>Cards</th>
-            <th>Priority</th>
-            <th>GMV/mo</th>
-            <th>Status</th>
-            <th>Claimant</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="admin-tbody"></tbody>
-      </table>
-    </div>
-  </div>
+ <div id="view-admin" class="view">
+   <div class="stats-grid">
+     <div class="stat-card"><div class="stat-label">Total spots</div><div class="stat-val" id="stat-total">0</div></div>
+     <div class="stat-card"><div class="stat-label">Open</div><div class="stat-val" id="stat-open">0</div></div>
+     <div class="stat-card"><div class="stat-label">Claimed</div><div class="stat-val" id="stat-claimed">0</div></div>
+     <div class="stat-card"><div class="stat-label">Confirmed</div><div class="stat-val" id="stat-confirmed">0</div></div>
+   </div>
+   <div class="filter-row">
+     <select id="filter-market" onchange="renderAdmin()"><option value="">All markets</option></select>
+     <select id="filter-status" onchange="renderAdmin()">
+       <option value="">All statuses</option>
+       <option>Open</option>
+       <option>Claimed</option>
+       <option>Confirmed</option>
+       <option>Closed</option>
+     </select>
+   </div>
+   <div style="overflow-x:auto;">
+     <table class="admin-table">
+       <thead>
+         <tr>
+           <th>Restaurant</th>
+           <th>Market</th>
+           <th>Cards</th>
+           <th>Priority</th>
+           <th>GMV/mo</th>
+           <th>Status</th>
+           <th>Claimant</th>
+           <th>Actions</th>
+         </tr>
+       </thead>
+       <tbody id="admin-tbody"></tbody>
+     </table>
+   </div>
+ </div>
 </div>
  
 <script>
 const RESTAURANTS = [
-  { id:1,  name:"Cafe Paris",              addr:"4424 16th Ave, Brooklyn, NY 11204",                   market:"New York City",  cards:["Visa","Amex"],             priority:"High",   gmv:2515 },
-  { id:2,  name:"Birdie's Sporting Club",  addr:"105 N 13th St, Brooklyn, NY 11249",                   market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:1036 },
-  { id:3,  name:"Essential By Christophe", addr:"103 W 77th St, New York, NY 10024",                   market:"New York City",  cards:["Amex"],                    priority:"Medium", gmv:860  },
-  { id:4,  name:"The Butcher's Daughter",  addr:"19 Kenmare St, New York, NY 10012",                   market:"New York City",  cards:["Amex"],                    priority:"Medium", gmv:826  },
-  { id:5,  name:"Amelie Wine Bar",         addr:"566 Amsterdam Ave, New York, NY 10024",               market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:826  },
-  { id:6,  name:"Mission Ceviche",         addr:"7 E 17th St, New York, NY 10003",                     market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:832  },
-  { id:7,  name:"Foghorn Taproom",         addr:"534 Irving St, San Francisco, CA 94121",              market:"San Francisco",  cards:["Visa","Mastercard"],       priority:"High",   gmv:1740 },
-  { id:8,  name:"GAIA Supperclub",         addr:"1025 Vermont Ave NW, Washington DC 20005",            market:"Washington, DC", cards:["Visa","Mastercard"],       priority:"High",   gmv:1617 },
-  { id:9,  name:"Taberna del Alabardero",  addr:"1776 I St NW, Washington DC 20006",                   market:"Washington, DC", cards:["Visa","Mastercard"],       priority:"Medium", gmv:923  },
-  { id:10, name:"La Vie",                  addr:"88 District Square SW, Washington DC 20024",          market:"Washington, DC", cards:["Mastercard","Amex"],       priority:"Medium", gmv:891  },
-  { id:11, name:"Chloe",                   addr:"1331 4th St SE, Washington DC 20003",                 market:"Washington, DC", cards:["Mastercard"],              priority:"Normal", gmv:707  },
-  { id:12, name:"Carmel - Los Angeles",    addr:"7383 Melrose Ave, Los Angeles, CA 90046",             market:"Los Angeles",    cards:["Mastercard","Amex"],       priority:"Medium", gmv:891  },
-  { id:13, name:"Idle Hour",               addr:"4824 Vineland Ave, Los Angeles, CA 91601",            market:"Los Angeles",    cards:["Mastercard"],              priority:"Medium", gmv:831  },
-  { id:14, name:"Sogno Toscano",           addr:"189 The Grove Dr, Los Angeles, CA 90036",             market:"Los Angeles",    cards:["Visa","Amex"],             priority:"Medium", gmv:813  },
-  { id:15, name:"SUR Restaurant & Lounge", addr:"606-614 N Robertson Blvd, West Hollywood, CA 90069", market:"Los Angeles",    cards:["Visa"],                    priority:"Normal", gmv:788  },
-  { id:16, name:"Fork & Vine Social",      addr:"910 W College Ave, Decatur, GA 30030",                market:"Atlanta",        cards:["Visa","Mastercard"],       priority:"High",   gmv:1464 },
-  { id:17, name:"Casa Matilda's",          addr:"411 Washington Ave, Miami Beach, FL 33139",           market:"Miami",          cards:["Visa","Mastercard","Amex"],priority:"High",   gmv:1418 },
-  { id:18, name:"Sushi | Bar",             addr:"610 Magazine St, Nashville, TN 37203",                market:"Nashville",      cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:1049 },
-  { id:19, name:"Ginger's",               addr:"2115 Jackson St, Dallas, TX 75201",                   market:"Dallas",         cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:974  },
-  { id:20, name:"The Monarch Stag",        addr:"6655 Winning Dr Ste 600, Frisco, TX 75034",           market:"Dallas",         cards:["Visa","Amex"],             priority:"Medium", gmv:944  },
+ { id:1,  name:"Cafe Paris",              addr:"4424 16th Ave, Brooklyn, NY 11204",                   market:"New York City",  cards:["Visa","Amex"],             priority:"High",   gmv:2515 },
+ { id:2,  name:"Birdie's Sporting Club",  addr:"105 N 13th St, Brooklyn, NY 11249",                   market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:1036 },
+ { id:3,  name:"Essential By Christophe", addr:"103 W 77th St, New York, NY 10024",                   market:"New York City",  cards:["Amex"],                    priority:"Medium", gmv:860  },
+ { id:4,  name:"The Butcher's Daughter",  addr:"19 Kenmare St, New York, NY 10012",                   market:"New York City",  cards:["Amex"],                    priority:"Medium", gmv:826  },
+ { id:5,  name:"Amelie Wine Bar",         addr:"566 Amsterdam Ave, New York, NY 10024",               market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:826  },
+ { id:6,  name:"Mission Ceviche",         addr:"7 E 17th St, New York, NY 10003",                     market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:832  },
+ { id:7,  name:"Foghorn Taproom",         addr:"534 Irving St, San Francisco, CA 94121",              market:"San Francisco",  cards:["Visa","Mastercard"],       priority:"High",   gmv:1740 },
+ { id:8,  name:"GAIA Supperclub",         addr:"1025 Vermont Ave NW, Washington DC 20005",            market:"Washington, DC", cards:["Visa","Mastercard"],       priority:"High",   gmv:1617 },
+ { id:9,  name:"Taberna del Alabardero",  addr:"1776 I St NW, Washington DC 20006",                   market:"Washington, DC", cards:["Visa","Mastercard"],       priority:"Medium", gmv:923  },
+ { id:10, name:"La Vie",                  addr:"88 District Square SW, Washington DC 20024",          market:"Washington, DC", cards:["Mastercard","Amex"],       priority:"Medium", gmv:891  },
+ { id:11, name:"Chloe",                   addr:"1331 4th St SE, Washington DC 20003",                 market:"Washington, DC", cards:["Mastercard"],              priority:"Normal", gmv:707  },
+ { id:12, name:"Carmel - Los Angeles",    addr:"7383 Melrose Ave, Los Angeles, CA 90046",             market:"Los Angeles",    cards:["Mastercard","Amex"],       priority:"Medium", gmv:891  },
+ { id:13, name:"Idle Hour",               addr:"4824 Vineland Ave, Los Angeles, CA 91601",            market:"Los Angeles",    cards:["Mastercard"],              priority:"Medium", gmv:831  },
+ { id:14, name:"Sogno Toscano",           addr:"189 The Grove Dr, Los Angeles, CA 90036",             market:"Los Angeles",    cards:["Visa","Amex"],             priority:"Medium", gmv:813  },
+ { id:15, name:"SUR Restaurant & Lounge", addr:"606-614 N Robertson Blvd, West Hollywood, CA 90069", market:"Los Angeles",    cards:["Visa"],                    priority:"Normal", gmv:788  },
+ { id:16, name:"Fork & Vine Social",      addr:"910 W College Ave, Decatur, GA 30030",                market:"Atlanta",        cards:["Visa","Mastercard"],       priority:"High",   gmv:1464 },
+ { id:17, name:"Casa Matilda's",          addr:"411 Washington Ave, Miami Beach, FL 33139",           market:"Miami",          cards:["Visa","Mastercard","Amex"],priority:"High",   gmv:1418 },
+ { id:18, name:"Sushi | Bar",             addr:"610 Magazine St, Nashville, TN 37203",                market:"Nashville",      cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:1049 },
+ { id:19, name:"Ginger's",               addr:"2115 Jackson St, Dallas, TX 75201",                   market:"Dallas",         cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:974  },
+ { id:20, name:"The Monarch Stag",        addr:"6655 Winning Dr Ste 600, Frisco, TX 75034",           market:"Dallas",         cards:["Visa","Amex"],             priority:"Medium", gmv:944  },
 ];
  
 const STORAGE_KEY = 'seated_visit_spots_apr2026';
@@ -228,179 +227,195 @@ let spots = [];
 let selectedId = null;
  
 async function loadSpots() {
-  try {
-    const result = await window.storage.get(STORAGE_KEY);
-    if (result && result.value) {
-      const saved = JSON.parse(result.value);
-      spots = RESTAURANTS.map(r => {
-        const s = saved.find(x => x.id === r.id);
-        return s ? { ...r, status: s.status, claimant: s.claimant } : { ...r, status: 'Open', claimant: null };
-      });
-    } else {
-      spots = RESTAURANTS.map(r => ({ ...r, status: 'Open', claimant: null }));
-    }
-  } catch(e) {
-    spots = RESTAURANTS.map(r => ({ ...r, status: 'Open', claimant: null }));
-  }
-  renderBrowse();
-  renderAdmin();
-  updateStats();
-  populateMarketFilter();
+ try {
+   const result = await window.storage.get(STORAGE_KEY);
+   if (result && result.value) {
+     const saved = JSON.parse(result.value);
+     spots = RESTAURANTS.map(r => {
+       const s = saved.find(x => x.id === r.id);
+       return s ? { ...r, status: s.status, claimant: s.claimant } : { ...r, status: 'Open', claimant: null };
+     });
+   } else {
+     spots = RESTAURANTS.map(r => ({ ...r, status: 'Open', claimant: null }));
+   }
+ } catch(e) {
+   spots = RESTAURANTS.map(r => ({ ...r, status: 'Open', claimant: null }));
+ }
+ renderBrowse();
+ renderAdmin();
+ updateStats();
+ populateMarketFilter();
 }
  
 async function saveSpots() {
-  try {
-    const data = spots.map(s => ({ id: s.id, status: s.status, claimant: s.claimant }));
-    await window.storage.set(STORAGE_KEY, JSON.stringify(data));
-  } catch(e) {}
+ try {
+   const data = spots.map(s => ({ id: s.id, status: s.status, claimant: s.claimant }));
+   await window.storage.set(STORAGE_KEY, JSON.stringify(data));
+ } catch(e) {}
 }
  
 function cardBadge(c) {
-  const map = { Visa: 'b-visa', Mastercard: 'b-mc', Amex: 'b-amex' };
-  return `<span class="badge ${map[c]}">${c}</span>`;
+ const map = { Visa: 'b-visa', Mastercard: 'b-mc', Amex: 'b-amex' };
+ return `<span class="badge ${map[c]}">${c}</span>`;
 }
 function priorityBadge(p) {
-  const map = { High: 'b-high', Medium: 'b-med', Normal: 'b-norm' };
-  return `<span class="badge ${map[p]}">${p}</span>`;
+ const map = { High: 'b-high', Medium: 'b-med', Normal: 'b-norm' };
+ return `<span class="badge ${map[p]}">${p}</span>`;
 }
 function statusBadge(s) {
-  const map = { Open: 'b-open', Claimed: 'b-claimed', Confirmed: 'b-confirmed', Closed: 'b-closed' };
-  return `<span class="badge ${map[s]}">${s}</span>`;
+ const map = { Open: 'b-open', Claimed: 'b-claimed', Confirmed: 'b-confirmed', Closed: 'b-closed' };
+ return `<span class="badge ${map[s]}">${s}</span>`;
 }
 function fmtGmv(n) {
-  return '$' + n.toLocaleString();
+ return '$' + n.toLocaleString();
 }
  
 function renderBrowse() {
-  const markets = [...new Set(RESTAURANTS.map(r => r.market))];
-  let html = '';
-  markets.forEach(m => {
-    const items = spots.filter(s => s.market === m);
-    html += `<div class="market-label">${m}</div>`;
-    items.forEach(s => {
-      const taken = s.status !== 'Open';
-      html += `<div class="card ${taken ? 'taken' : ''}">
-        <div class="card-row">
-          <div>
-            <div class="card-name">${s.name}</div>
-            <div class="card-addr">${s.addr}</div>
-            <div class="card-meta">
-              ${s.cards.map(cardBadge).join(' ')}
-              ${priorityBadge(s.priority)}
-              <span class="card-gmv">${fmtGmv(s.gmv)}/mo</span>
-              ${taken ? statusBadge(s.status) : ''}
-            </div>
-          </div>
-          <button class="claim-btn" onclick="openForm(${s.id})" ${taken ? 'disabled' : ''}>${taken ? 'Taken' : 'Claim spot'}</button>
-        </div>
-      </div>`;
-    });
-  });
-  document.getElementById('resto-list').innerHTML = html;
+ const markets = [...new Set(RESTAURANTS.map(r => r.market))];
+ let html = '';
+ markets.forEach(m => {
+   const items = spots.filter(s => s.market === m);
+   html += `<div class="market-label">${m}</div>`;
+   items.forEach(s => {
+     const taken = s.status !== 'Open';
+     html += `<div class="card ${taken ? 'taken' : ''}">
+       <div class="card-row">
+         <div>
+           <div class="card-name">${s.name}</div>
+           <div class="card-addr">${s.addr}</div>
+           <div class="card-meta">
+             ${s.cards.map(cardBadge).join(' ')}
+             ${priorityBadge(s.priority)}
+             <span class="card-gmv">${fmtGmv(s.gmv)}/mo</span>
+             ${taken ? statusBadge(s.status) : ''}
+           </div>
+         </div>
+         <button class="claim-btn" onclick="openForm(${s.id})" ${taken ? 'disabled' : ''}>${taken ? 'Taken' : 'Claim spot'}</button>
+       </div>
+     </div>`;
+   });
+ });
+ document.getElementById('resto-list').innerHTML = html;
 }
  
 function openForm(id) {
-  selectedId = id;
-  const s = spots.find(r => r.id === id);
-  document.getElementById('form-title').textContent = s.name;
-  document.getElementById('form-sub').textContent = `${s.addr} · Pay with: ${s.cards.join(' or ')}`;
-  document.getElementById('claim-form-container').style.display = 'block';
-  document.getElementById('form-success').style.display = 'none';
-  ['f-name','f-email'].forEach(id => document.getElementById(id).value = '');
-  ['f-rel','f-card'].forEach(id => document.getElementById(id).value = '');
-  setTimeout(() => document.getElementById('claim-form-container').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+ selectedId = id;
+ const s = spots.find(r => r.id === id);
+ document.getElementById('form-title').textContent = s.name;
+ document.getElementById('form-sub').textContent = `${s.addr} · Pay with: ${s.cards.join(' or ')}`;
+ document.getElementById('claim-form-container').style.display = 'block';
+ document.getElementById('form-success').style.display = 'none';
+ ['f-name','f-email'].forEach(id => document.getElementById(id).value = '');
+ document.getElementById('f-rel').value = '';
+ document.querySelectorAll('#f-cards input[type=checkbox]').forEach(cb => cb.checked = false);
+ setTimeout(() => document.getElementById('claim-form-container').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
  
 function cancelClaim() {
-  selectedId = null;
-  document.getElementById('claim-form-container').style.display = 'none';
+ selectedId = null;
+ document.getElementById('claim-form-container').style.display = 'none';
 }
  
 async function submitClaim() {
-  const name = document.getElementById('f-name').value.trim();
-  const email = document.getElementById('f-email').value.trim();
-  const rel = document.getElementById('f-rel').value;
-  const card = document.getElementById('f-card').value;
-  if (!name || !email || !rel || !card) { alert('Please fill out all fields.'); return; }
-  const s = spots.find(r => r.id === selectedId);
-  if (s.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
-  s.status = 'Claimed';
-  s.claimant = { name, email, rel, card, claimedAt: new Date().toISOString() };
-  await saveSpots();
-  document.getElementById('form-success').style.display = 'block';
-  renderBrowse();
-  renderAdmin();
-  updateStats();
+ const name = document.getElementById('f-name').value.trim();
+ const email = document.getElementById('f-email').value.trim();
+ const rel = document.getElementById('f-rel').value;
+ const cards = [...document.querySelectorAll('#f-cards input[type=checkbox]:checked')].map(cb => cb.value);
+ if (!name || !email || !rel || cards.length === 0) { alert('Please fill out all fields and select at least one card.'); return; }
+ const s = spots.find(r => r.id === selectedId);
+ if (s.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
+ s.status = 'Claimed';
+ s.claimant = { name, email, rel, card: cards.join(', '), claimedAt: new Date().toISOString() };
+ await saveSpots();
+ try {
+   emailjs.init('-t1K1x-L7JdF-y-cv');
+   emailjs.send('service_ypjhxql', 'template_us88agp', {
+     to_email: 'opassafiume@seatedapp.io',
+     restaurant: s.name,
+     address: s.addr,
+     market: s.market,
+     claimant_name: name,
+     claimant_email: email,
+     relation: rel,
+     cards: cards.join(', '),
+     claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+   });
+ } catch(e) {}
+ document.getElementById('form-success').style.display = 'block';
+ renderBrowse();
+ renderAdmin();
+ updateStats();
 }
  
 function renderAdmin() {
-  const mFilter = document.getElementById('filter-market').value;
-  const sFilter = document.getElementById('filter-status').value;
-  const filtered = spots.filter(s =>
-    (!mFilter || s.market === mFilter) &&
-    (!sFilter || s.status === sFilter)
-  );
-  if (!filtered.length) {
-    document.getElementById('admin-tbody').innerHTML = `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-3);">No results found</td></tr>`;
-    return;
-  }
-  let html = '';
-  filtered.forEach(s => {
-    const c = s.claimant;
-    const claimedDate = c && c.claimedAt ? new Date(c.claimedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-    html += `<tr>
-      <td><div style="font-weight:500;font-size:13px;">${s.name}</div><div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;margin-top:2px;">${s.addr}</div></td>
-      <td style="color:var(--text-2);">${s.market}</td>
-      <td>${s.cards.map(cardBadge).join(' ')}</td>
-      <td>${priorityBadge(s.priority)}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${fmtGmv(s.gmv)}</td>
-      <td>${statusBadge(s.status)}</td>
-      <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div><div style="color:var(--text-3);margin-top:1px;">${c.rel} · ${c.card}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
-      <td>
-        ${s.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'Confirmed')">Confirm</button>` : ''}
-        ${['Claimed','Confirmed'].includes(s.status) ? `<button class="action-btn" onclick="setStatus(${s.id},'Closed')">Close</button>` : ''}
-        ${s.status !== 'Open' ? `<button class="action-btn" onclick="setStatus(${s.id},'Open')">Reopen</button>` : ''}
-      </td>
-    </tr>`;
-  });
-  document.getElementById('admin-tbody').innerHTML = html;
+ const mFilter = document.getElementById('filter-market').value;
+ const sFilter = document.getElementById('filter-status').value;
+ const filtered = spots.filter(s =>
+   (!mFilter || s.market === mFilter) &&
+   (!sFilter || s.status === sFilter)
+ );
+ if (!filtered.length) {
+   document.getElementById('admin-tbody').innerHTML = `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-3);">No results found</td></tr>`;
+   return;
+ }
+ let html = '';
+ filtered.forEach(s => {
+   const c = s.claimant;
+   const claimedDate = c && c.claimedAt ? new Date(c.claimedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+   html += `<tr>
+     <td><div style="font-weight:500;font-size:13px;">${s.name}</div><div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;margin-top:2px;">${s.addr}</div></td>
+     <td style="color:var(--text-2);">${s.market}</td>
+     <td>${s.cards.map(cardBadge).join(' ')}</td>
+     <td>${priorityBadge(s.priority)}</td>
+     <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${fmtGmv(s.gmv)}</td>
+     <td>${statusBadge(s.status)}</td>
+     <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div><div style="color:var(--text-3);margin-top:1px;">${c.rel} · ${c.card}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
+     <td>
+       ${s.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'Confirmed')">Confirm</button>` : ''}
+       ${['Claimed','Confirmed'].includes(s.status) ? `<button class="action-btn" onclick="setStatus(${s.id},'Closed')">Close</button>` : ''}
+       ${s.status !== 'Open' ? `<button class="action-btn" onclick="setStatus(${s.id},'Open')">Reopen</button>` : ''}
+     </td>
+   </tr>`;
+ });
+ document.getElementById('admin-tbody').innerHTML = html;
 }
  
 async function setStatus(id, status) {
-  const s = spots.find(r => r.id === id);
-  s.status = status;
-  if (status === 'Open') s.claimant = null;
-  await saveSpots();
-  renderBrowse();
-  renderAdmin();
-  updateStats();
+ const s = spots.find(r => r.id === id);
+ s.status = status;
+ if (status === 'Open') s.claimant = null;
+ await saveSpots();
+ renderBrowse();
+ renderAdmin();
+ updateStats();
 }
  
 function updateStats() {
-  document.getElementById('stat-total').textContent = spots.length;
-  document.getElementById('stat-open').textContent = spots.filter(s => s.status === 'Open').length;
-  document.getElementById('stat-claimed').textContent = spots.filter(s => s.status === 'Claimed').length;
-  document.getElementById('stat-confirmed').textContent = spots.filter(s => s.status === 'Confirmed').length;
+ document.getElementById('stat-total').textContent = spots.length;
+ document.getElementById('stat-open').textContent = spots.filter(s => s.status === 'Open').length;
+ document.getElementById('stat-claimed').textContent = spots.filter(s => s.status === 'Claimed').length;
+ document.getElementById('stat-confirmed').textContent = spots.filter(s => s.status === 'Confirmed').length;
 }
  
 function populateMarketFilter() {
-  const sel = document.getElementById('filter-market');
-  const markets = [...new Set(RESTAURANTS.map(r => r.market))];
-  markets.forEach(m => {
-    const o = document.createElement('option');
-    o.value = m; o.textContent = m;
-    sel.appendChild(o);
-  });
+ const sel = document.getElementById('filter-market');
+ const markets = [...new Set(RESTAURANTS.map(r => r.market))];
+ markets.forEach(m => {
+   const o = document.createElement('option');
+   o.value = m; o.textContent = m;
+   sel.appendChild(o);
+ });
 }
  
 function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
-  document.getElementById(`view-${tab}`).classList.add('active');
+ document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+ document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+ document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+ document.getElementById(`view-${tab}`).classList.add('active');
 }
  
 loadSpots();
 </script>
 </body>
 </html>
+
