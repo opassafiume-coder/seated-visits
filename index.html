@@ -157,7 +157,26 @@
           <button class="btn-primary" onclick="submitClaim()">Submit claim</button>
           <button class="btn-ghost" onclick="cancelClaim()">Cancel</button>
         </div>
-        <div id="form-success" style="display:none;" class="success-banner">Claim submitted! Olivia will confirm your assignment within 1 business day.</div>
+      </div>
+    </div>
+ 
+    <div id="claim-confirmation" style="display:none; max-width:560px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-top:1rem;">
+        <div style="font-size:22px;margin-bottom:8px;">🎉</div>
+        <h2 style="font-size:18px;font-weight:500;margin-bottom:6px;">You're confirmed!</h2>
+        <p style="font-size:14px;color:var(--text-2);margin-bottom:1.5rem;">Olivia will be in touch within 1 business day to confirm your assignment.</p>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem 1.25rem;margin-bottom:1rem;">
+          <div style="font-size:13px;font-weight:500;margin-bottom:4px;" id="conf-restaurant"></div>
+          <div style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;margin-bottom:10px;" id="conf-address"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <span style="font-size:12px;color:var(--text-3);">Cards to run:</span>
+            <span id="conf-cards"></span>
+          </div>
+        </div>
+        <div style="background:#FFF8EC;border:1px solid #F5C97A;border-radius:8px;padding:10px 14px;font-size:13px;color:#7A4E00;margin-bottom:1.5rem;">
+          <strong>Heads up:</strong> You have <strong>48 hours</strong> from now to complete your visit. If the visit isn't done in time, your spot will be released back into the pool.
+        </div>
+        <button class="btn-ghost" onclick="showSignupList()" style="width:100%;">← Back to sign-up list</button>
       </div>
     </div>
   </div>
@@ -350,6 +369,28 @@ async function loadSpots() {
     const s = savedSpots.find(x => x.id === r.id);
     return s ? { ...r, status: s.status, claimant: s.claimant } : { ...r, status: 'Open', claimant: null };
   });
+ 
+  // Auto-expire claims older than 48 hours only if no post-visit report submitted
+  const now = new Date();
+  let anyExpired = false;
+  spots.forEach(s => {
+    if (s.status === 'Claimed' && s.claimant && s.claimant.claimedAt) {
+      const claimedAt = new Date(s.claimant.claimedAt);
+      const hoursElapsed = (now - claimedAt) / (1000 * 60 * 60);
+      if (hoursElapsed >= 48) {
+        const hasReport = pvReports.some(r =>
+          r.restaurant === s.name &&
+          r.email === s.claimant.email
+        );
+        if (!hasReport) {
+          s.status = 'Open';
+          s.claimant = null;
+          anyExpired = true;
+        }
+      }
+    }
+  });
+  if (anyExpired) await saveToBin();
   renderBrowse();
   renderAdmin();
   updateStats();
@@ -450,7 +491,7 @@ function openForm(id) {
   document.getElementById('form-title').textContent = s.name;
   document.getElementById('form-sub').textContent = `${s.addr} · Pay with: ${s.cards.join(' or ')}`;
   document.getElementById('claim-form-container').style.display = 'block';
-  document.getElementById('form-success').style.display = 'none';
+  document.getElementById('claim-confirmation').style.display = 'none';
   ['f-name','f-email'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-rel').value = '';
   document.querySelectorAll('#f-cards input[type=checkbox]').forEach(cb => cb.checked = false);
@@ -460,6 +501,11 @@ function openForm(id) {
 function cancelClaim() {
   selectedId = null;
   document.getElementById('claim-form-container').style.display = 'none';
+}
+ 
+function showSignupList() {
+  document.getElementById('claim-confirmation').style.display = 'none';
+  document.getElementById('resto-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
  
 async function submitClaim() {
@@ -487,7 +533,13 @@ async function submitClaim() {
       claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     });
   } catch(e) {}
-  document.getElementById('form-success').style.display = 'block';
+ 
+  document.getElementById('claim-form-container').style.display = 'none';
+  document.getElementById('conf-restaurant').textContent = s.name;
+  document.getElementById('conf-address').textContent = s.addr;
+  document.getElementById('conf-cards').innerHTML = s.cards.map(c => cardBadge(c)).join(' ');
+  document.getElementById('claim-confirmation').style.display = 'block';
+  document.getElementById('claim-confirmation').scrollIntoView({ behavior: 'smooth', block: 'start' });
   renderBrowse();
   renderAdmin();
   updateStats();
@@ -634,10 +686,6 @@ loadSpots();
 </body>
 </html>
  
-
-
-
-
 
 
 
