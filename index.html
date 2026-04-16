@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Seated — Restaurant Visit Sign-ups</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<style>
+  #map { height: 320px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 1.5rem; z-index: 0; }
+  .highlighted-card { border-color: #1A1814 !important; box-shadow: 0 0 0 2px #1A1814; }</style>
 <style>
   :root {
     --bg: #F7F5F0;
@@ -122,6 +127,7 @@
 
 <div class="container">
   <div id="view-browse" class="view active">
+    <div id="map"></div>
     <div id="resto-list"><div class="loading">Loading spots...</div></div>
     <div id="claim-form-container" style="display:none;">
       <div class="form-wrap">
@@ -310,26 +316,26 @@
 
 <script>
 const RESTAURANTS = [
-  { id:1,  name:"Cafe Paris",              addr:"4424 16th Ave, Brooklyn, NY 11204",                   market:"New York City",  cards:["Visa","Amex"],             priority:"High",   gmv:2515 },
-  { id:2,  name:"Birdie's Sporting Club",  addr:"105 N 13th St, Brooklyn, NY 11249",                   market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:1036 },
-  { id:3,  name:"Essential By Christophe", addr:"103 W 77th St, New York, NY 10024",                   market:"New York City",  cards:["Amex"],                    priority:"Medium", gmv:860  },
-  { id:4,  name:"The Butcher's Daughter",  addr:"19 Kenmare St, New York, NY 10012",                   market:"New York City",  cards:["Amex"],                    priority:"Medium", gmv:826  },
-  { id:5,  name:"Amelie Wine Bar",         addr:"566 Amsterdam Ave, New York, NY 10024",               market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:826  },
-  { id:6,  name:"Mission Ceviche",         addr:"7 E 17th St, New York, NY 10003",                     market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:832  },
-  { id:7,  name:"Foghorn Taproom",         addr:"534 Irving St, San Francisco, CA 94121",              market:"San Francisco",  cards:["Visa","Mastercard"],       priority:"High",   gmv:1740 },
-  { id:8,  name:"GAIA Supperclub",         addr:"1025 Vermont Ave NW, Washington DC 20005",            market:"Washington, DC", cards:["Visa","Mastercard"],       priority:"High",   gmv:1617 },
-  { id:9,  name:"Taberna del Alabardero",  addr:"1776 I St NW, Washington DC 20006",                   market:"Washington, DC", cards:["Visa","Mastercard"],       priority:"Medium", gmv:923  },
-  { id:10, name:"La Vie",                  addr:"88 District Square SW, Washington DC 20024",          market:"Washington, DC", cards:["Mastercard","Amex"],       priority:"Medium", gmv:891  },
-  { id:11, name:"Chloe",                   addr:"1331 4th St SE, Washington DC 20003",                 market:"Washington, DC", cards:["Mastercard"],              priority:"Normal", gmv:707  },
-  { id:12, name:"Carmel - Los Angeles",    addr:"7383 Melrose Ave, Los Angeles, CA 90046",             market:"Los Angeles",    cards:["Mastercard","Amex"],       priority:"Medium", gmv:891  },
-  { id:13, name:"Idle Hour",               addr:"4824 Vineland Ave, Los Angeles, CA 91601",            market:"Los Angeles",    cards:["Mastercard"],              priority:"Medium", gmv:831  },
-  { id:14, name:"Sogno Toscano",           addr:"189 The Grove Dr, Los Angeles, CA 90036",             market:"Los Angeles",    cards:["Visa","Amex"],             priority:"Medium", gmv:813  },
-  { id:15, name:"SUR Restaurant & Lounge", addr:"606-614 N Robertson Blvd, West Hollywood, CA 90069", market:"Los Angeles",    cards:["Visa"],                    priority:"Normal", gmv:788  },
-  { id:16, name:"Fork & Vine Social",      addr:"910 W College Ave, Decatur, GA 30030",                market:"Atlanta",        cards:["Visa","Mastercard"],       priority:"High",   gmv:1464 },
-  { id:17, name:"Casa Matilda's",          addr:"411 Washington Ave, Miami Beach, FL 33139",           market:"Miami",          cards:["Visa","Mastercard","Amex"],priority:"High",   gmv:1418 },
-  { id:18, name:"Sushi | Bar",             addr:"610 Magazine St, Nashville, TN 37203",                market:"Nashville",      cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:1049 },
-  { id:19, name:"Ginger's",               addr:"2115 Jackson St, Dallas, TX 75201",                   market:"Dallas",         cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:974  },
-  { id:20, name:"The Monarch Stag",        addr:"6655 Winning Dr Ste 600, Frisco, TX 75034",           market:"Dallas",         cards:["Visa","Amex"],             priority:"Medium", gmv:944  },
+  { id:1,  name:"Cafe Paris",              addr:"4424 16th Ave, Brooklyn, NY 11204",                   market:"New York City",  cards:["Visa","Amex"],             priority:"High",   gmv:2515, lat:40.6349, lng:-73.9836 },
+  { id:2,  name:"Birdie's Sporting Club",  addr:"105 N 13th St, Brooklyn, NY 11249",                   market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:1036, lat:40.7142, lng:-73.9643 },
+  { id:3,  name:"Essential By Christophe", addr:"103 W 77th St, New York, NY 10024",                   market:"New York City",  cards:["Amex"],                    priority:"Medium", gmv:860,  lat:40.7812, lng:-73.9795 },
+  { id:4,  name:"The Butcher's Daughter",  addr:"19 Kenmare St, New York, NY 10012",                   market:"New York City",  cards:["Amex"],                    priority:"Medium", gmv:826,  lat:40.7226, lng:-73.9966 },
+  { id:5,  name:"Amelie Wine Bar",         addr:"566 Amsterdam Ave, New York, NY 10024",               market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:826,  lat:40.7851, lng:-73.9800 },
+  { id:6,  name:"Mission Ceviche",         addr:"7 E 17th St, New York, NY 10003",                     market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:832,  lat:40.7378, lng:-73.9916 },
+  { id:7,  name:"Foghorn Taproom",         addr:"534 Irving St, San Francisco, CA 94121",              market:"San Francisco",  cards:["Visa","Mastercard"],       priority:"High",   gmv:1740, lat:37.7632, lng:-122.4702 },
+  { id:8,  name:"GAIA Supperclub",         addr:"1025 Vermont Ave NW, Washington DC 20005",            market:"Washington, DC", cards:["Visa","Mastercard"],       priority:"High",   gmv:1617, lat:38.9027, lng:-77.0324 },
+  { id:9,  name:"Taberna del Alabardero",  addr:"1776 I St NW, Washington DC 20006",                   market:"Washington, DC", cards:["Visa","Mastercard"],       priority:"Medium", gmv:923,  lat:38.9001, lng:-77.0424 },
+  { id:10, name:"La Vie",                  addr:"88 District Square SW, Washington DC 20024",          market:"Washington, DC", cards:["Mastercard","Amex"],       priority:"Medium", gmv:891,  lat:38.8794, lng:-77.0163 },
+  { id:11, name:"Chloe",                   addr:"1331 4th St SE, Washington DC 20003",                 market:"Washington, DC", cards:["Mastercard"],              priority:"Normal", gmv:707,  lat:38.8797, lng:-76.9956 },
+  { id:12, name:"Carmel - Los Angeles",    addr:"7383 Melrose Ave, Los Angeles, CA 90046",             market:"Los Angeles",    cards:["Mastercard","Amex"],       priority:"Medium", gmv:891,  lat:34.0836, lng:-118.3517 },
+  { id:13, name:"Idle Hour",               addr:"4824 Vineland Ave, Los Angeles, CA 91601",            market:"Los Angeles",    cards:["Mastercard"],              priority:"Medium", gmv:831,  lat:34.1566, lng:-118.3720 },
+  { id:14, name:"Sogno Toscano",           addr:"189 The Grove Dr, Los Angeles, CA 90036",             market:"Los Angeles",    cards:["Visa","Amex"],             priority:"Medium", gmv:813,  lat:34.0722, lng:-118.3564 },
+  { id:15, name:"SUR Restaurant & Lounge", addr:"606-614 N Robertson Blvd, West Hollywood, CA 90069", market:"Los Angeles",    cards:["Visa"],                    priority:"Normal", gmv:788,  lat:34.0833, lng:-118.3856 },
+  { id:16, name:"Fork & Vine Social",      addr:"910 W College Ave, Decatur, GA 30030",                market:"Atlanta",        cards:["Visa","Mastercard"],       priority:"High",   gmv:1464, lat:33.7732, lng:-84.2963 },
+  { id:17, name:"Casa Matilda's",          addr:"411 Washington Ave, Miami Beach, FL 33139",           market:"Miami",          cards:["Visa","Mastercard","Amex"],priority:"High",   gmv:1418, lat:25.7771, lng:-80.1396 },
+  { id:18, name:"Sushi | Bar",             addr:"610 Magazine St, Nashville, TN 37203",                market:"Nashville",      cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:1049, lat:36.1488, lng:-86.7922 },
+  { id:19, name:"Ginger's",               addr:"2115 Jackson St, Dallas, TX 75201",                   market:"Dallas",         cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:974,  lat:32.7938, lng:-96.8023 },
+  { id:20, name:"The Monarch Stag",        addr:"6655 Winning Dr Ste 600, Frisco, TX 75034",           market:"Dallas",         cards:["Visa","Amex"],             priority:"Medium", gmv:944,  lat:33.1468, lng:-96.8236 },
 ];
 
 const JSONBIN_ID = '69e04f30aaba8821970422b6';
@@ -358,6 +364,45 @@ async function saveToBin() {
       body: JSON.stringify({ spots: spotsData, pvReports })
     });
   } catch(e) {}
+}
+
+let map = null;
+let mapMarkers = [];
+
+function initMap() {
+  if (map) return;
+  map = L.map('map').setView([39.5, -98.35], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+}
+
+function renderMap() {
+  if (!map) initMap();
+  mapMarkers.forEach(m => map.removeLayer(m));
+  mapMarkers = [];
+  const openSpots = spots.filter(s => s.status === 'Open');
+  openSpots.forEach(s => {
+    const marker = L.circleMarker([s.lat, s.lng], {
+      radius: 8,
+      fillColor: '#1A1814',
+      color: '#fff',
+      weight: 2,
+      opacity: 1,
+      fillOpacity: 0.9
+    }).addTo(map);
+    marker.bindTooltip(`<strong>${s.name}</strong><br>${s.market}`, { direction: 'top', offset: [0, -8] });
+    marker.on('click', () => {
+      const el = document.getElementById(`card-${s.id}`);
+      if (el) {
+        document.querySelectorAll('.card').forEach(c => c.classList.remove('highlighted-card'));
+        el.classList.add('highlighted-card');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => el.classList.remove('highlighted-card'), 2500);
+      }
+    });
+    mapMarkers.push(marker);
+  });
 }
 
 async function loadSpots() {
@@ -392,6 +437,7 @@ async function loadSpots() {
   });
   if (anyExpired) await saveToBin();
   renderBrowse();
+  renderMap();
   renderAdmin();
   updateStats();
   populateMarketFilter();
@@ -465,7 +511,7 @@ function renderBrowse() {
     html += `<div class="market-label">${m}</div>`;
     items.forEach(s => {
       const taken = s.status !== 'Open';
-      html += `<div class="card ${taken ? 'taken' : ''}">
+      html += `<div class="card ${taken ? 'taken' : ''}" id="card-${s.id}">
         <div class="card-row">
           <div>
             <div class="card-name">${s.name}</div>
@@ -548,6 +594,7 @@ async function submitClaim() {
   document.getElementById('claim-confirmation').style.display = 'block';
   document.getElementById('claim-confirmation').scrollIntoView({ behavior: 'smooth', block: 'start' });
   renderBrowse();
+  renderMap();
   renderAdmin();
   updateStats();
 }
@@ -591,6 +638,7 @@ async function setStatus(id, status) {
   if (status === 'Open') s.claimant = null;
   await saveSpots();
   renderBrowse();
+  renderMap();
   renderAdmin();
   updateStats();
 }
