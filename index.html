@@ -28,7 +28,7 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
- 
+
   .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 56px; }
   .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
   .logo span { color: var(--text-3); font-weight: 400; }
@@ -36,9 +36,9 @@
   .tab { font-size: 13px; font-weight: 500; padding: 0 16px; height: 56px; display: flex; align-items: center; border: none; background: none; cursor: pointer; color: var(--text-2); border-bottom: 2px solid transparent; transition: color 0.15s; }
   .tab:hover { color: var(--text); }
   .tab.active { color: var(--text); border-bottom-color: var(--text); }
- 
+
   .container { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
- 
+
   .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; white-space: nowrap; font-family: 'DM Mono', monospace; }
   .b-visa { background: var(--visa-bg); color: var(--visa-text); }
   .b-mc { background: var(--mc-bg); color: var(--mc-text); }
@@ -50,9 +50,9 @@
   .b-claimed { background: var(--claimed-bg); color: var(--claimed-text); }
   .b-confirmed { background: var(--confirmed-bg); color: var(--confirmed-text); }
   .b-closed { background: var(--closed-bg); color: var(--closed-text); }
- 
+
   .market-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin: 2rem 0 10px; font-family: 'DM Mono', monospace; }
- 
+
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 8px; transition: border-color 0.15s; }
   .card:hover { border-color: var(--border-strong); }
   .card.taken { opacity: 0.6; }
@@ -61,11 +61,11 @@
   .card-addr { font-size: 12px; color: var(--text-2); margin-top: 3px; font-family: 'DM Mono', monospace; }
   .card-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
   .card-gmv { font-size: 11px; color: var(--text-3); font-family: 'DM Mono', monospace; margin-left: 2px; }
- 
+
   .claim-btn { font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--text); color: #fff; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; flex-shrink: 0; }
   .claim-btn:hover { opacity: 0.8; }
   .claim-btn:disabled { background: var(--border); color: var(--text-3); border-color: var(--border); cursor: not-allowed; opacity: 1; }
- 
+
   .form-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-top: 1rem; }
   .form-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
   .form-sub { font-size: 13px; color: var(--text-2); margin-bottom: 1.25rem; font-family: 'DM Mono', monospace; }
@@ -80,15 +80,15 @@
   .btn-ghost { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; padding: 10px 20px; border-radius: 6px; border: 1px solid var(--border-strong); background: none; color: var(--text-2); cursor: pointer; }
   .btn-ghost:hover { background: var(--bg); }
   .success-banner { background: var(--open-bg); color: var(--open-text); border-radius: 6px; padding: 12px 16px; font-size: 13px; font-weight: 500; margin-top: 12px; }
- 
+
   .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
   .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
   .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); font-family: 'DM Mono', monospace; margin-bottom: 6px; }
   .stat-val { font-size: 26px; font-weight: 300; color: var(--text); letter-spacing: -0.02em; }
- 
+
   .filter-row { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
   .filter-row select { width: auto; font-size: 13px; padding: 7px 10px; }
- 
+
   .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   .admin-table th { background: var(--bg); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-family: 'DM Mono', monospace; }
   .admin-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
@@ -96,11 +96,11 @@
   .admin-table tr:hover td { background: var(--bg); }
   .action-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-strong); background: none; cursor: pointer; color: var(--text-2); margin-right: 4px; transition: background 0.15s; }
   .action-btn:hover { background: var(--bg); color: var(--text); }
- 
+
   .view { display: none; }
   .view.active { display: block; }
   .loading { text-align: center; padding: 3rem; color: var(--text-3); font-size: 14px; }
- 
+
   @media (max-width: 600px) {
     .form-grid { grid-template-columns: 1fr; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -110,7 +110,7 @@
 </style>
 </head>
 <body>
- 
+
 <div class="header">
   <div class="logo">Seated <span>/ restaurant visits</span></div>
   <div class="tab-bar">
@@ -119,7 +119,7 @@
     <button class="tab" onclick="switchTab('admin')">Admin</button>
   </div>
 </div>
- 
+
 <div class="container">
   <div id="view-browse" class="view active">
     <div id="resto-list"><div class="loading">Loading spots...</div></div>
@@ -159,7 +159,7 @@
         </div>
       </div>
     </div>
- 
+
     <div id="claim-confirmation" style="display:none; max-width:560px;">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-top:1rem;">
         <div style="font-size:22px;margin-bottom:8px;">🎉</div>
@@ -180,7 +180,7 @@
       </div>
     </div>
   </div>
- 
+
   <div id="view-postvisit" class="view">
     <div style="max-width: 560px;">
       <h2 style="font-size:18px;font-weight:500;margin-bottom:6px;">Post-visit report</h2>
@@ -244,7 +244,7 @@
       </div>
     </div>
   </div>
- 
+
   <div id="view-admin" class="view">
     <div style="background:#FFF8EC;border:1px solid #F5C97A;border-radius:8px;padding:12px 16px;font-size:14px;color:#7A4E00;margin-bottom:1.5rem;"><strong>🔒 Read only — this tab is managed by Olivia, please don't make any changes.</strong></div>
     <div class="stats-grid">
@@ -253,7 +253,7 @@
       <div class="stat-card"><div class="stat-label">Claimed</div><div class="stat-val" id="stat-claimed">0</div></div>
       <div class="stat-card"><div class="stat-label">Confirmed</div><div class="stat-val" id="stat-confirmed">0</div></div>
     </div>
- 
+
     <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;margin-bottom:10px;">Spot assignments</div>
     <div class="filter-row">
       <select id="filter-market" onchange="renderAdmin()"><option value="">All markets</option></select>
@@ -282,7 +282,7 @@
         <tbody id="admin-tbody"></tbody>
       </table>
     </div>
- 
+
     <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;margin-bottom:10px;">Post-visit reports</div>
     <div style="overflow-x:auto;">
       <table class="admin-table">
@@ -307,7 +307,7 @@
     </div>
   </div>
 </div>
- 
+
 <script>
 const RESTAURANTS = [
   { id:1,  name:"Cafe Paris",              addr:"4424 16th Ave, Brooklyn, NY 11204",                   market:"New York City",  cards:["Visa","Amex"],             priority:"High",   gmv:2515 },
@@ -331,14 +331,14 @@ const RESTAURANTS = [
   { id:19, name:"Ginger's",               addr:"2115 Jackson St, Dallas, TX 75201",                   market:"Dallas",         cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:974  },
   { id:20, name:"The Monarch Stag",        addr:"6655 Winning Dr Ste 600, Frisco, TX 75034",           market:"Dallas",         cards:["Visa","Amex"],             priority:"Medium", gmv:944  },
 ];
- 
+
 const JSONBIN_ID = '69e04f30aaba8821970422b6';
 const JSONBIN_KEY = '$2a$10$542A7cjv/sltRH4nxd8PZ.627YzR2AfWLM9s9sTQWyG/kp0fIvcs6';
 const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}`;
 let spots = [];
 let pvReports = [];
 let selectedId = null;
- 
+
 async function loadFromBin() {
   try {
     const res = await fetch(JSONBIN_URL + '/latest', {
@@ -348,7 +348,7 @@ async function loadFromBin() {
     return data.record;
   } catch(e) { return { spots: [], pvReports: [] }; }
 }
- 
+
 async function saveToBin() {
   const spotsData = spots.map(s => ({ id: s.id, status: s.status, claimant: s.claimant }));
   try {
@@ -359,7 +359,7 @@ async function saveToBin() {
     });
   } catch(e) {}
 }
- 
+
 async function loadSpots() {
   document.getElementById('resto-list').innerHTML = '<div class="loading">Loading spots...</div>';
   const record = await loadFromBin();
@@ -369,7 +369,7 @@ async function loadSpots() {
     const s = savedSpots.find(x => x.id === r.id);
     return s ? { ...r, status: s.status, claimant: s.claimant } : { ...r, status: 'Open', claimant: null };
   });
- 
+
   // Auto-expire claims older than 48 hours only if no post-visit report submitted
   const now = new Date();
   let anyExpired = false;
@@ -398,15 +398,15 @@ async function loadSpots() {
   populatePostVisitRestaurants();
   renderPvReports();
 }
- 
+
 async function loadPvReports() {
   renderPvReports();
 }
- 
+
 async function savePvReports() {
   await saveToBin();
 }
- 
+
 function renderPvReports() {
   const tbody = document.getElementById('pv-admin-tbody');
   if (!pvReports.length) {
@@ -436,11 +436,11 @@ function renderPvReports() {
   </tr>`;
   }).join('');
 }
- 
+
 async function saveSpots() {
   await saveToBin();
 }
- 
+
 function cardBadge(c) {
   const map = { Visa: 'b-visa', Mastercard: 'b-mc', Amex: 'b-amex' };
   return `<span class="badge ${map[c]}">${c}</span>`;
@@ -456,7 +456,7 @@ function statusBadge(s) {
 function fmtGmv(n) {
   return '$' + n.toLocaleString();
 }
- 
+
 function renderBrowse() {
   const markets = [...new Set(RESTAURANTS.map(r => r.market))];
   let html = '';
@@ -484,7 +484,7 @@ function renderBrowse() {
   });
   document.getElementById('resto-list').innerHTML = html;
 }
- 
+
 function openForm(id) {
   selectedId = id;
   const s = spots.find(r => r.id === id);
@@ -497,17 +497,17 @@ function openForm(id) {
   document.querySelectorAll('#f-cards input[type=checkbox]').forEach(cb => cb.checked = false);
   setTimeout(() => document.getElementById('claim-form-container').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
- 
+
 function cancelClaim() {
   selectedId = null;
   document.getElementById('claim-form-container').style.display = 'none';
 }
- 
+
 function showSignupList() {
   document.getElementById('claim-confirmation').style.display = 'none';
   document.getElementById('resto-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
- 
+
 async function submitClaim() {
   const name = document.getElementById('f-name').value.trim();
   const email = document.getElementById('f-email').value.trim();
@@ -520,8 +520,8 @@ async function submitClaim() {
   s.claimant = { name, email, rel, card: cards.join(', '), claimedAt: new Date().toISOString() };
   await saveSpots();
   try {
-    emailjs.init('YOUR_EMAILJS_PUBLIC_KEY');
-    emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
+    emailjs.init('-t1K1x-L7JdF-y-cv');
+    emailjs.send('service_1mz5oak', 'template_us88agp', {
       to_email: 'opassafiume@seatedapp.io',
       restaurant: s.name,
       address: s.addr,
@@ -532,8 +532,15 @@ async function submitClaim() {
       cards: cards.join(', '),
       claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     });
+    emailjs.send('service_1mz5oak', 'template_5nlix8m', {
+      claimant_name: name,
+      claimant_email: email,
+      restaurant: s.name,
+      address: s.addr,
+      cards: cards.join(', '),
+    });
   } catch(e) {}
- 
+
   document.getElementById('claim-form-container').style.display = 'none';
   document.getElementById('conf-restaurant').textContent = s.name;
   document.getElementById('conf-address').textContent = s.addr;
@@ -544,7 +551,7 @@ async function submitClaim() {
   renderAdmin();
   updateStats();
 }
- 
+
 function renderAdmin() {
   const mFilter = document.getElementById('filter-market').value;
   const sFilter = document.getElementById('filter-status').value;
@@ -577,7 +584,7 @@ function renderAdmin() {
   });
   document.getElementById('admin-tbody').innerHTML = html;
 }
- 
+
 async function setStatus(id, status) {
   const s = spots.find(r => r.id === id);
   s.status = status;
@@ -587,14 +594,14 @@ async function setStatus(id, status) {
   renderAdmin();
   updateStats();
 }
- 
+
 function updateStats() {
   document.getElementById('stat-total').textContent = spots.length;
   document.getElementById('stat-open').textContent = spots.filter(s => s.status === 'Open').length;
   document.getElementById('stat-claimed').textContent = spots.filter(s => s.status === 'Claimed').length;
   document.getElementById('stat-confirmed').textContent = spots.filter(s => s.status === 'Confirmed').length;
 }
- 
+
 function populateMarketFilter() {
   const sel = document.getElementById('filter-market');
   const markets = [...new Set(RESTAURANTS.map(r => r.market))];
@@ -604,7 +611,7 @@ function populateMarketFilter() {
     sel.appendChild(o);
   });
 }
- 
+
 function populatePostVisitRestaurants() {
   const sel = document.getElementById('pv-restaurant');
   RESTAURANTS.forEach(r => {
@@ -613,7 +620,7 @@ function populatePostVisitRestaurants() {
     sel.appendChild(o);
   });
 }
- 
+
 async function submitPostVisit() {
   const name = document.getElementById('pv-name').value.trim();
   const email = document.getElementById('pv-email').value.trim();
@@ -623,15 +630,15 @@ async function submitPostVisit() {
   const card = document.getElementById('pv-card').value;
   const last4 = document.getElementById('pv-last4').value.trim();
   const notes = document.getElementById('pv-notes').value.trim();
- 
+
   document.getElementById('pv-error').style.display = 'none';
   if (!name || !email || !restaurant || !visitDate || !amount || !card || !last4) {
     document.getElementById('pv-error').style.display = 'block';
     return;
   }
- 
+
   try {
-    emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
+    emailjs.send('service_1mz5oak', 'template_us88agp', {
       to_email: 'opassafiume@seatedapp.io',
       subject: `Post-visit report: ${restaurant}`,
       claimant_name: name,
@@ -644,7 +651,7 @@ async function submitPostVisit() {
       claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     });
   } catch(e) {}
- 
+
   pvReports.push({
     name, email, restaurant, visitDate, card, last4,
     amount: parseFloat(amount).toFixed(2),
@@ -653,39 +660,35 @@ async function submitPostVisit() {
   });
   await savePvReports();
   renderPvReports();
- 
+
   document.getElementById('pv-success').style.display = 'block';
   ['pv-name','pv-email','pv-amount','pv-notes','pv-last4'].forEach(id => document.getElementById(id).value = '');
   ['pv-restaurant','pv-card','pv-date'].forEach(id => document.getElementById(id).value = '');
 }
- 
+
 async function updatePvReceipt(idx, value) {
   pvReports[idx].receiptReceived = value;
   await savePvReports();
 }
- 
+
 async function updatePvStatus(idx, value) {
   pvReports[idx].adminStatus = value;
   await savePvReports();
 }
- 
+
 async function updatePvNote(idx, value) {
   pvReports[idx].adminNote = value;
   await savePvReports();
 }
- 
+
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
   document.getElementById(`view-${tab}`).classList.add('active');
 }
- 
+
 loadSpots();
 </script>
 </body>
 </html>
- 
-
-
-
