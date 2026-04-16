@@ -313,51 +313,57 @@ const RESTAURANTS = [
   { id:20, name:"The Monarch Stag",        addr:"6655 Winning Dr Ste 600, Frisco, TX 75034",           market:"Dallas",         cards:["Visa","Amex"],             priority:"Medium", gmv:944  },
 ];
  
-const STORAGE_KEY = 'seated_visit_spots_apr2026';
-const PV_STORAGE_KEY = 'seated_postvisit_reports_apr2026';
+const JSONBIN_ID = '69e04a5f36566621a8bacfc7';
+const JSONBIN_KEY = '$2a$10$542A7cjv/sltRH4nxd8PZ.627YzR2AfWLM9s9sTQWyG/kp0fIvcs6';
+const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}`;
 let spots = [];
 let pvReports = [];
 let selectedId = null;
  
-async function loadSpots() {
+async function loadFromBin() {
   try {
-    const result = await window.storage.get(STORAGE_KEY);
-    if (result && result.value) {
-      const saved = JSON.parse(result.value);
-      spots = RESTAURANTS.map(r => {
-        const s = saved.find(x => x.id === r.id);
-        return s ? { ...r, status: s.status, claimant: s.claimant } : { ...r, status: 'Open', claimant: null };
-      });
-    } else {
-      spots = RESTAURANTS.map(r => ({ ...r, status: 'Open', claimant: null }));
-    }
-  } catch(e) {
-    spots = RESTAURANTS.map(r => ({ ...r, status: 'Open', claimant: null }));
-  }
+    const res = await fetch(JSONBIN_URL + '/latest', {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    const data = await res.json();
+    return data.record;
+  } catch(e) { return { spots: [], pvReports: [] }; }
+}
+ 
+async function saveToBin() {
+  const spotsData = spots.map(s => ({ id: s.id, status: s.status, claimant: s.claimant }));
+  try {
+    await fetch(JSONBIN_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
+      body: JSON.stringify({ spots: spotsData, pvReports })
+    });
+  } catch(e) {}
+}
+ 
+async function loadSpots() {
+  document.getElementById('resto-list').innerHTML = '<div class="loading">Loading spots...</div>';
+  const record = await loadFromBin();
+  const savedSpots = record.spots || [];
+  pvReports = record.pvReports || [];
+  spots = RESTAURANTS.map(r => {
+    const s = savedSpots.find(x => x.id === r.id);
+    return s ? { ...r, status: s.status, claimant: s.claimant } : { ...r, status: 'Open', claimant: null };
+  });
   renderBrowse();
   renderAdmin();
   updateStats();
   populateMarketFilter();
   populatePostVisitRestaurants();
-  await loadPvReports();
+  renderPvReports();
 }
  
 async function loadPvReports() {
-  try {
-    const result = await window.storage.get(PV_STORAGE_KEY);
-    if (result && result.value) {
-      pvReports = JSON.parse(result.value);
-    } else {
-      pvReports = [];
-    }
-  } catch(e) { pvReports = []; }
   renderPvReports();
 }
  
 async function savePvReports() {
-  try {
-    await window.storage.set(PV_STORAGE_KEY, JSON.stringify(pvReports));
-  } catch(e) {}
+  await saveToBin();
 }
  
 function renderPvReports() {
@@ -391,10 +397,7 @@ function renderPvReports() {
 }
  
 async function saveSpots() {
-  try {
-    const data = spots.map(s => ({ id: s.id, status: s.status, claimant: s.claimant }));
-    await window.storage.set(STORAGE_KEY, JSON.stringify(data));
-  } catch(e) {}
+  await saveToBin();
 }
  
 function cardBadge(c) {
