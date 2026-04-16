@@ -157,7 +157,7 @@
           <button class="btn-primary" onclick="submitClaim()">Submit claim</button>
           <button class="btn-ghost" onclick="cancelClaim()">Cancel</button>
         </div>
-        <div id="form-success" style="display:none;" class="success-banner">Claim submitted! Liv will confirm your assignment within 1 business day.</div>
+        <div id="form-success" style="display:none;" class="success-banner">Claim submitted! Olivia will confirm your assignment within 1 business day.</div>
       </div>
     </div>
   </div>
@@ -190,7 +190,7 @@
             <label>Total amount spent</label>
             <input type="number" id="pv-amount" placeholder="e.g. 142.50" min="0" step="0.01" />
           </div>
-          <div class="form-field" style="grid-column: 1 / -1;">
+          <div class="form-field">
             <label>Card used</label>
             <select id="pv-card">
               <option value="">Select one</option>
@@ -200,9 +200,13 @@
             </select>
             <div style="margin-top:6px;font-size:12px;color:var(--text-2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;">If you used more than one card during your visit, please submit a separate report for each card used.</div>
           </div>
+          <div class="form-field">
+            <label>Last 4 digits of card</label>
+            <input type="text" id="pv-last4" placeholder="e.g. 4242" maxlength="4" pattern="[0-9]{4}" />
+          </div>
           <div class="form-field" style="grid-column: 1 / -1;">
             <label>Any notes or issues?</label>
-            <textarea id="pv-notes" placeholder="Anything else Liv should know about the visit..." style="font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);outline:none;width:100%;resize:vertical;min-height:80px;transition:border-color 0.15s;"></textarea>
+            <textarea id="pv-notes" placeholder="Anything else Olivia should know about the visit..." style="font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);outline:none;width:100%;resize:vertical;min-height:80px;transition:border-color 0.15s;"></textarea>
           </div>
           <div class="form-field" style="grid-column: 1 / -1;">
             <label>Photos reminder</label>
@@ -223,7 +227,7 @@
   </div>
  
   <div id="view-admin" class="view">
-    <div style="background:#FFF8EC;border:1px solid #F5C97A;border-radius:8px;padding:10px 16px;font-size:13px;color:#7A4E00;margin-bottom:1.5rem;">This tab is for <strong>Liv only</strong> — please don't share this view with the team.</div>
+    <div style="background:#FFF8EC;border:1px solid #F5C97A;border-radius:8px;padding:12px 16px;font-size:14px;color:#7A4E00;margin-bottom:1.5rem;"><strong>🔒 Read only — this tab is managed by Olivia, please don't make any changes.</strong></div>
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-label">Total spots</div><div class="stat-val" id="stat-total">0</div></div>
       <div class="stat-card"><div class="stat-label">Open</div><div class="stat-val" id="stat-open">0</div></div>
@@ -268,15 +272,17 @@
             <th>Visit date</th>
             <th>Name</th>
             <th>Restaurant</th>
-            <th>Card used</th>
-            <th>Amount spent</th>
+            <th>Card</th>
+            <th>Last 4</th>
+            <th>Amount</th>
             <th>Their notes</th>
+            <th>Receipt received</th>
             <th>Status</th>
             <th>My notes</th>
           </tr>
         </thead>
         <tbody id="pv-admin-tbody">
-          <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
+          <tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -367,13 +373,16 @@ function renderPvReports() {
     <td><div style="font-weight:500;font-size:13px;">${r.name}</div><div style="font-size:11px;color:var(--text-3);">${r.email}</div></td>
     <td style="font-size:13px;">${r.restaurant}</td>
     <td>${cardBadge(r.card)}</td>
+    <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${r.last4 || '—'}</td>
     <td style="font-size:13px;font-family:'DM Mono',monospace;">$${parseFloat(r.amount).toFixed(2)}</td>
     <td style="font-size:12px;color:var(--text-2);">${r.notes || '—'}</td>
+    <td style="text-align:center;"><input type="checkbox" ${r.receiptReceived ? 'checked' : ''} onchange="updatePvReceipt(${idx}, this.checked)" style="width:16px;height:16px;cursor:pointer;" /></td>
     <td>
       <select onchange="updatePvStatus(${idx}, this.value)" style="font-size:12px;padding:4px 8px;width:auto;">
         <option value="New" ${(r.adminStatus||'New')==='New'?'selected':''}>New</option>
         <option value="No receipt sent" ${r.adminStatus==='No receipt sent'?'selected':''}>No receipt sent</option>
         <option value="Trx submitted to dash" ${r.adminStatus==='Trx submitted to dash'?'selected':''}>Trx submitted to dash</option>
+        <option value="Voided" ${r.adminStatus==='Voided'?'selected':''}>Voided</option>
       </select>
     </td>
     <td><textarea onblur="updatePvNote(${idx}, this.value)" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:150px;min-height:50px;resize:vertical;">${r.adminNote||''}</textarea></td>
@@ -557,10 +566,11 @@ async function submitPostVisit() {
   const visitDate = document.getElementById('pv-date').value;
   const amount = document.getElementById('pv-amount').value.trim();
   const card = document.getElementById('pv-card').value;
+  const last4 = document.getElementById('pv-last4').value.trim();
   const notes = document.getElementById('pv-notes').value.trim();
  
   document.getElementById('pv-error').style.display = 'none';
-  if (!name || !email || !restaurant || !visitDate || !amount || !card) {
+  if (!name || !email || !restaurant || !visitDate || !amount || !card || !last4) {
     document.getElementById('pv-error').style.display = 'block';
     return;
   }
@@ -574,13 +584,14 @@ async function submitPostVisit() {
       restaurant: restaurant,
       visit_date: visitDate,
       card_used: card,
+      last_four: last4,
       notes: notes || 'None',
       claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     });
   } catch(e) {}
  
   pvReports.push({
-    name, email, restaurant, visitDate, card,
+    name, email, restaurant, visitDate, card, last4,
     amount: parseFloat(amount).toFixed(2),
     notes,
     submittedAt: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -589,8 +600,13 @@ async function submitPostVisit() {
   renderPvReports();
  
   document.getElementById('pv-success').style.display = 'block';
-  ['pv-name','pv-email','pv-amount','pv-notes'].forEach(id => document.getElementById(id).value = '');
+  ['pv-name','pv-email','pv-amount','pv-notes','pv-last4'].forEach(id => document.getElementById(id).value = '');
   ['pv-restaurant','pv-card','pv-date'].forEach(id => document.getElementById(id).value = '');
+}
+ 
+async function updatePvReceipt(idx, value) {
+  pvReports[idx].receiptReceived = value;
+  await savePvReports();
 }
  
 async function updatePvStatus(idx, value) {
