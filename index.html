@@ -127,7 +127,13 @@
 <div class="container">
   <div id="view-browse" class="view active">
     <div id="map"></div>
-    <div id="resto-list"><div class="loading">Loading spots...</div></div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+      <select id="browse-market-filter" onchange="filterBrowseMarket()" style="font-family:'DM Sans',sans-serif;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;min-width:200px;">
+        <option value="">— Select a market —</option>
+      </select>
+      <span id="browse-count" style="font-size:13px;color:var(--text-3);"></span>
+    </div>
+    <div id="resto-list" style="display:none;"></div>
     <div id="claim-form-container" style="display:none;">
       <div class="form-wrap">
         <div class="form-title" id="form-title"></div>
@@ -333,7 +339,7 @@ function getPriority(gmv) {
 
 async function loadRestaurantsFromSheet() {
   try {
-    const res = await fetch(SHEET_CSV_URL);
+    const res = await fetch('https://corsproxy.io/?' + encodeURIComponent(SHEET_CSV_URL));
     const text = await res.text();
     const lines = text.trim().split('\n');
     const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
@@ -410,32 +416,60 @@ function renderMap() {
   if (!map) initMap();
   mapMarkers.forEach(m => map.removeLayer(m));
   mapMarkers = [];
+  const selectedMarket = document.getElementById('browse-market-filter') ? document.getElementById('browse-market-filter').value : '';
   const openSpots = spots.filter(s => s.status === 'Open');
+
   openSpots.forEach(s => {
+    const isSelected = !selectedMarket || s.market === selectedMarket;
     const marker = L.circleMarker([s.lat, s.lng], {
-      radius: 8,
-      fillColor: '#1A1814',
+      radius: isSelected ? 9 : 6,
+      fillColor: isSelected ? '#1A1814' : '#BBBBBB',
       color: '#fff',
       weight: 2,
       opacity: 1,
-      fillOpacity: 0.9
+      fillOpacity: isSelected ? 0.9 : 0.4
     }).addTo(map);
     marker.bindTooltip(`<strong>${s.name}</strong><br>${s.market}`, { direction: 'top', offset: [0, -8] });
-    marker.on('click', () => {
-      const el = document.getElementById(`card-${s.id}`);
-      if (el) {
-        document.querySelectorAll('.card').forEach(c => c.classList.remove('highlighted-card'));
-        el.classList.add('highlighted-card');
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => el.classList.remove('highlighted-card'), 2500);
-      }
-    });
+    if (isSelected) {
+      marker.on('click', () => {
+        // If no market selected yet, select this restaurant's market first
+        const sel = document.getElementById('browse-market-filter');
+        if (!sel.value) {
+          sel.value = s.market;
+          renderBrowse();
+          updateBrowseCount();
+        }
+        const el = document.getElementById(`card-${s.id}`);
+        if (el) {
+          document.querySelectorAll('.card').forEach(c => c.classList.remove('highlighted-card'));
+          el.classList.add('highlighted-card');
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => el.classList.remove('highlighted-card'), 2500);
+        }
+      });
+    }
     mapMarkers.push(marker);
   });
+
+  // Zoom to selected market
+  if (selectedMarket) {
+    const marketSpots = openSpots.filter(s => s.market === selectedMarket);
+    if (marketSpots.length > 0) {
+      const lats = marketSpots.map(s => s.lat);
+      const lngs = marketSpots.map(s => s.lng);
+      const bounds = L.latLngBounds(
+        [Math.min(...lats) - 0.05, Math.min(...lngs) - 0.05],
+        [Math.max(...lats) + 0.05, Math.max(...lngs) + 0.05]
+      );
+      map.fitBounds(bounds, { maxZoom: 13 });
+    }
+  } else {
+    map.setView([39.5, -98.35], 4);
+  }
 }
 
 async function loadSpots() {
-  document.getElementById('resto-list').innerHTML = '<div class="loading">Loading spots...</div>';
+  // resto-list starts hidden until market is selected
   await loadRestaurantsFromSheet();
   const record = await loadFromBin();
   const savedSpots = record.spots || [];
@@ -472,6 +506,7 @@ async function loadSpots() {
   updateStats();
   populateMarketFilter();
   populatePostVisitRestaurants();
+  updateBrowseCount();
   renderPvReports();
 }
 
@@ -531,9 +566,19 @@ function statusBadge(s) {
 }
 
 function renderBrowse() {
+  const selectedMarket = document.getElementById('browse-market-filter') ? document.getElementById('browse-market-filter').value : '';
+  const restoList = document.getElementById('resto-list');
+
+  if (!selectedMarket) {
+    restoList.style.display = 'none';
+    restoList.innerHTML = '';
+    return;
+  }
+
   const markets = [...new Set(RESTAURANTS.map(r => r.market))];
   let html = '';
   markets.forEach(m => {
+    if (m !== selectedMarket) return;
     const items = spots.filter(s => s.market === m);
     html += `<div class="market-label">${m}</div>`;
     items.forEach(s => {
@@ -554,7 +599,8 @@ function renderBrowse() {
       </div>`;
     });
   });
-  document.getElementById('resto-list').innerHTML = html;
+  restoList.innerHTML = html;
+  restoList.style.display = 'block';
 }
 
 function openForm(id) {
@@ -676,13 +722,37 @@ function updateStats() {
 }
 
 function populateMarketFilter() {
+  // Populate admin filter
   const sel = document.getElementById('filter-market');
-  const markets = [...new Set(RESTAURANTS.map(r => r.market))];
+  const markets = [...new Set(RESTAURANTS.map(r => r.market))].sort();
   markets.forEach(m => {
     const o = document.createElement('option');
     o.value = m; o.textContent = m;
     sel.appendChild(o);
   });
+
+  // Populate browse filter
+  const browsesel = document.getElementById('browse-market-filter');
+  browsesel.innerHTML = '<option value="">— Select a market —</option>';
+  markets.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = m;
+    browsesel.appendChild(o);
+  });
+  updateBrowseCount();
+}
+
+function filterBrowseMarket() {
+  renderBrowse();
+  renderMap();
+  updateBrowseCount();
+}
+
+function updateBrowseCount() {
+  const market = document.getElementById('browse-market-filter').value;
+  const open = spots.filter(s => s.status === 'Open' && (!market || s.market === market)).length;
+  const total = spots.filter(s => !market || s.market === market).length;
+  document.getElementById('browse-count').textContent = open + ' of ' + total + ' spots open' + (market ? ' in ' + market : '');
 }
 
 function populatePostVisitRestaurants() {
