@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Seated — Restaurant Visit Sign-ups</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
   #map { height: 320px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 1.5rem; z-index: 0; }
@@ -65,7 +65,6 @@
   .card-name { font-size: 14px; font-weight: 500; }
   .card-addr { font-size: 12px; color: var(--text-2); margin-top: 3px; font-family: 'DM Mono', monospace; }
   .card-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
-  .card-gmv { font-size: 11px; color: var(--text-3); font-family: 'DM Mono', monospace; margin-left: 2px; }
 
   .claim-btn { font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--text); color: #fff; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; flex-shrink: 0; }
   .claim-btn:hover { opacity: 0.8; }
@@ -279,7 +278,6 @@
             <th>Market</th>
             <th>Cards</th>
             <th>Priority</th>
-            <th>GMV/mo</th>
             <th>Status</th>
             <th>Claimant</th>
             <th>Actions</th>
@@ -315,28 +313,57 @@
 </div>
 
 <script>
-const RESTAURANTS = [
-  { id:1,  name:"Cafe Paris",              addr:"4424 16th Ave, Brooklyn, NY 11204",                   market:"New York City",  cards:["Visa","Amex"],             priority:"High",   gmv:2515, lat:40.6349, lng:-73.9836 },
-  { id:2,  name:"Birdie's Sporting Club",  addr:"105 N 13th St, Brooklyn, NY 11249",                   market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:1036, lat:40.7142, lng:-73.9643 },
-  { id:3,  name:"Essential By Christophe", addr:"103 W 77th St, New York, NY 10024",                   market:"New York City",  cards:["Amex"],                    priority:"Medium", gmv:860,  lat:40.7812, lng:-73.9795 },
-  { id:4,  name:"The Butcher's Daughter",  addr:"19 Kenmare St, New York, NY 10012",                   market:"New York City",  cards:["Amex"],                    priority:"Medium", gmv:826,  lat:40.7226, lng:-73.9966 },
-  { id:5,  name:"Amelie Wine Bar",         addr:"566 Amsterdam Ave, New York, NY 10024",               market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:826,  lat:40.7851, lng:-73.9800 },
-  { id:6,  name:"Mission Ceviche",         addr:"7 E 17th St, New York, NY 10003",                     market:"New York City",  cards:["Mastercard"],              priority:"Medium", gmv:832,  lat:40.7378, lng:-73.9916 },
-  { id:7,  name:"Foghorn Taproom",         addr:"534 Irving St, San Francisco, CA 94121",              market:"San Francisco",  cards:["Visa","Mastercard"],       priority:"High",   gmv:1740, lat:37.7632, lng:-122.4702 },
-  { id:8,  name:"GAIA Supperclub",         addr:"1025 Vermont Ave NW, Washington DC 20005",            market:"Washington, DC", cards:["Visa","Mastercard"],       priority:"High",   gmv:1617, lat:38.9027, lng:-77.0324 },
-  { id:9,  name:"Taberna del Alabardero",  addr:"1776 I St NW, Washington DC 20006",                   market:"Washington, DC", cards:["Visa","Mastercard"],       priority:"Medium", gmv:923,  lat:38.9001, lng:-77.0424 },
-  { id:10, name:"La Vie",                  addr:"88 District Square SW, Washington DC 20024",          market:"Washington, DC", cards:["Mastercard","Amex"],       priority:"Medium", gmv:891,  lat:38.8794, lng:-77.0163 },
-  { id:11, name:"Chloe",                   addr:"1331 4th St SE, Washington DC 20003",                 market:"Washington, DC", cards:["Mastercard"],              priority:"Normal", gmv:707,  lat:38.8797, lng:-76.9956 },
-  { id:12, name:"Carmel - Los Angeles",    addr:"7383 Melrose Ave, Los Angeles, CA 90046",             market:"Los Angeles",    cards:["Mastercard","Amex"],       priority:"Medium", gmv:891,  lat:34.0836, lng:-118.3517 },
-  { id:13, name:"Idle Hour",               addr:"4824 Vineland Ave, Los Angeles, CA 91601",            market:"Los Angeles",    cards:["Mastercard"],              priority:"Medium", gmv:831,  lat:34.1566, lng:-118.3720 },
-  { id:14, name:"Sogno Toscano",           addr:"189 The Grove Dr, Los Angeles, CA 90036",             market:"Los Angeles",    cards:["Visa","Amex"],             priority:"Medium", gmv:813,  lat:34.0722, lng:-118.3564 },
-  { id:15, name:"SUR Restaurant & Lounge", addr:"606-614 N Robertson Blvd, West Hollywood, CA 90069", market:"Los Angeles",    cards:["Visa"],                    priority:"Normal", gmv:788,  lat:34.0833, lng:-118.3856 },
-  { id:16, name:"Fork & Vine Social",      addr:"910 W College Ave, Decatur, GA 30030",                market:"Atlanta",        cards:["Visa","Mastercard"],       priority:"High",   gmv:1464, lat:33.7732, lng:-84.2963 },
-  { id:17, name:"Casa Matilda's",          addr:"411 Washington Ave, Miami Beach, FL 33139",           market:"Miami",          cards:["Visa","Mastercard","Amex"],priority:"High",   gmv:1418, lat:25.7771, lng:-80.1396 },
-  { id:18, name:"Sushi | Bar",             addr:"610 Magazine St, Nashville, TN 37203",                market:"Nashville",      cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:1049, lat:36.1488, lng:-86.7922 },
-  { id:19, name:"Ginger's",               addr:"2115 Jackson St, Dallas, TX 75201",                   market:"Dallas",         cards:["Visa","Mastercard","Amex"],priority:"Medium", gmv:974,  lat:32.7938, lng:-96.8023 },
-  { id:20, name:"The Monarch Stag",        addr:"6655 Winning Dr Ste 600, Frisco, TX 75034",           market:"Dallas",         cards:["Visa","Amex"],             priority:"Medium", gmv:944,  lat:33.1468, lng:-96.8236 },
-];
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSpiiG9jookK2lZWo9zmU_o7F0xh8ya2dc89mRgDy6sCAZANPiCEH8yHHMLEik9lMVmCm9IK-ij5f8V/pub?output=csv';
+
+let RESTAURANTS = [];
+
+function parseCards(visa, mc, amex) {
+  const cards = [];
+  if (visa && visa !== 'No') cards.push('Visa');
+  if (mc && mc !== 'No') cards.push('Mastercard');
+  if (amex && amex !== 'No') cards.push('Amex');
+  return cards;
+}
+
+function getPriority(gmv) {
+  if (gmv >= 1400) return 'High';
+  if (gmv >= 800) return 'Medium';
+  return 'Normal';
+}
+
+async function loadRestaurantsFromSheet() {
+  try {
+    const res = await fetch(SHEET_CSV_URL);
+    const text = await res.text();
+    const lines = text.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const vals = lines[i].match(/(".*?"|[^,]+)(?=,|$)/g) || [];
+      const clean = vals.map(v => v.trim().replace(/^"|"$/g, ''));
+      const obj = {};
+      headers.forEach((h, idx) => obj[h] = clean[idx] || '');
+      const gmv = parseFloat((obj['GMV / mo'] || '0').replace(/[^0-9.]/g, '')) || 0;
+      const include = (obj['Include? (YES/NO)'] || '').toUpperCase().trim();
+      if (include !== 'YES') continue;
+      rows.push({
+        id: rows.length + 1,
+        name: obj['Name'] || '',
+        addr: obj['Address'] || '',
+        market: obj['Market'] || '',
+        cards: (obj['Cards Needed'] || '').split(',').map(c => c.trim()).filter(c => c.length > 0),
+        priority: getPriority(gmv),
+        gmv: Math.round(gmv),
+        lat: parseFloat(obj['Latitude']) || 39.5,
+        lng: parseFloat(obj['Longitude']) || -98.35,
+      });
+    }
+    RESTAURANTS = rows;
+  } catch(e) {
+    console.error('Failed to load sheet:', e);
+    RESTAURANTS = [];
+  }
+}
 
 const JSONBIN_ID = '69e04f30aaba8821970422b6';
 const JSONBIN_KEY = '$2a$10$542A7cjv/sltRH4nxd8PZ.627YzR2AfWLM9s9sTQWyG/kp0fIvcs6';
@@ -371,10 +398,12 @@ let mapMarkers = [];
 
 function initMap() {
   if (map) return;
-  map = L.map('map').setView([39.5, -98.35], 4);
+  map = L.map('map', { scrollWheelZoom: false }).setView([39.5, -98.35], 4);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 18
   }).addTo(map);
+  setTimeout(() => map.invalidateSize(), 100);
 }
 
 function renderMap() {
@@ -407,6 +436,7 @@ function renderMap() {
 
 async function loadSpots() {
   document.getElementById('resto-list').innerHTML = '<div class="loading">Loading spots...</div>';
+  await loadRestaurantsFromSheet();
   const record = await loadFromBin();
   const savedSpots = record.spots || [];
   pvReports = record.pvReports || [];
@@ -499,9 +529,6 @@ function statusBadge(s) {
   const map = { Open: 'b-open', Claimed: 'b-claimed', Confirmed: 'b-confirmed', Closed: 'b-closed' };
   return `<span class="badge ${map[s]}">${s}</span>`;
 }
-function fmtGmv(n) {
-  return '$' + n.toLocaleString();
-}
 
 function renderBrowse() {
   const markets = [...new Set(RESTAURANTS.map(r => r.market))];
@@ -519,7 +546,6 @@ function renderBrowse() {
             <div class="card-meta">
               ${s.cards.map(cardBadge).join(' ')}
               ${priorityBadge(s.priority)}
-              <span class="card-gmv">${fmtGmv(s.gmv)}/mo</span>
               ${taken ? statusBadge(s.status) : ''}
             </div>
           </div>
@@ -619,8 +645,7 @@ function renderAdmin() {
       <td style="color:var(--text-2);">${s.market}</td>
       <td>${s.cards.map(cardBadge).join(' ')}</td>
       <td>${priorityBadge(s.priority)}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${fmtGmv(s.gmv)}</td>
-      <td>${statusBadge(s.status)}</td>
+        <td>${statusBadge(s.status)}</td>
       <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div><div style="color:var(--text-3);margin-top:1px;">${c.rel} · ${c.card}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
       <td>
         ${s.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'Confirmed')">Confirm</button>` : ''}
