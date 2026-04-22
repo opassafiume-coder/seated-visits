@@ -339,10 +339,11 @@ function getPriority(gmv) {
 
 async function loadRestaurantsFromSheet() {
   try {
+    const cacheBustUrl = SHEET_CSV_URL + '&t=' + Date.now();
     const proxies = [
-      'https://corsproxy.io/?' + encodeURIComponent(SHEET_CSV_URL),
-      'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEET_CSV_URL),
-      SHEET_CSV_URL
+      'https://corsproxy.io/?' + encodeURIComponent(cacheBustUrl),
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent(cacheBustUrl),
+      cacheBustUrl
     ];
     let res = null;
     for (const url of proxies) {
@@ -444,7 +445,6 @@ function renderMap() {
     marker.bindTooltip(`<strong>${s.name}</strong><br>${s.market}`, { direction: 'top', offset: [0, -8] });
     if (isSelected) {
       marker.on('click', () => {
-        // If no market selected yet, select this restaurant's market first
         const sel = document.getElementById('browse-market-filter');
         if (!sel.value) {
           sel.value = s.market;
@@ -463,7 +463,6 @@ function renderMap() {
     mapMarkers.push(marker);
   });
 
-  // Zoom to selected market
   if (selectedMarket) {
     const marketSpots = openSpots.filter(s => s.market === selectedMarket);
     if (marketSpots.length > 0) {
@@ -481,7 +480,6 @@ function renderMap() {
 }
 
 async function loadSpots() {
-  // resto-list starts hidden until market is selected
   await loadRestaurantsFromSheet();
   const record = await loadFromBin();
   const savedSpots = record.spots || [];
@@ -491,7 +489,6 @@ async function loadSpots() {
     return s ? { ...r, status: s.status, claimant: s.claimant } : { ...r, status: 'Open', claimant: null };
   });
 
-  // Auto-expire claims older than 48 hours only if no post-visit report submitted
   const now = new Date();
   let anyExpired = false;
   spots.forEach(s => {
@@ -734,7 +731,6 @@ function updateStats() {
 }
 
 function populateMarketFilter() {
-  // Populate admin filter
   const sel = document.getElementById('filter-market');
   const markets = [...new Set(RESTAURANTS.map(r => r.market))].sort();
   markets.forEach(m => {
@@ -743,7 +739,6 @@ function populateMarketFilter() {
     sel.appendChild(o);
   });
 
-  // Populate browse filter
   const browsesel = document.getElementById('browse-market-filter');
   browsesel.innerHTML = '<option value="">— Select a market —</option>';
   markets.forEach(m => {
