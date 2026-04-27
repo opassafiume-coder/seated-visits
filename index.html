@@ -285,7 +285,6 @@
             <th>Restaurant</th>
             <th>Market</th>
             <th>Cards</th>
-            <th>Priority</th>
             <th>Status</th>
             <th>Claimant</th>
             <th>Actions</th>
@@ -619,7 +618,7 @@ function renderBrowse() {
           <div>
             <div class="card-name">${s.name}</div>
             <div class="card-addr">${s.addr}</div>
-            <div class="card-meta">${priorityBadge(s.priority)}</div>
+            <div class="card-meta"></div>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">${cardButtons}</div>
         </div>
@@ -724,7 +723,6 @@ function renderAdmin() {
       <td><div style="font-weight:500;font-size:13px;">${s.name}</div><div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;margin-top:2px;">${s.addr}</div></td>
       <td style="color:var(--text-2);">${s.market}</td>
       <td>${cardBadge(card)}</td>
-      <td>${priorityBadge(s.priority)}</td>
       <td>${statusBadge(slot.status)}</td>
       <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div><div style="color:var(--text-3);margin-top:1px;">${c.rel}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
       <td>
