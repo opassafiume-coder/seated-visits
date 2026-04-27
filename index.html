@@ -131,6 +131,12 @@
       <select id="browse-market-filter" onchange="filterBrowseMarket()" style="font-family:'DM Sans',sans-serif;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;min-width:200px;">
         <option value="">— Select a market —</option>
       </select>
+      <select id="browse-card-filter" onchange="filterBrowseMarket()" style="font-family:'DM Sans',sans-serif;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;">
+        <option value="">— All cards —</option>
+        <option value="Visa">Visa</option>
+        <option value="Mastercard">Mastercard</option>
+        <option value="Amex">Amex</option>
+      </select>
       <span id="browse-count" style="font-size:13px;color:var(--text-3);"></span>
     </div>
     <div id="resto-list" style="display:none;"></div>
@@ -576,6 +582,7 @@ function statusBadge(s) {
 
 function renderBrowse() {
   const selectedMarket = document.getElementById('browse-market-filter') ? document.getElementById('browse-market-filter').value : '';
+  const selectedCard = document.getElementById('browse-card-filter') ? document.getElementById('browse-card-filter').value : '';
   const restoList = document.getElementById('resto-list');
 
   if (!selectedMarket) {
@@ -588,7 +595,7 @@ function renderBrowse() {
   let html = '';
   markets.forEach(m => {
     if (m !== selectedMarket) return;
-    const items = spots.filter(s => s.market === m);
+    const items = spots.filter(s => s.market === m && (!selectedCard || s.cards.includes(selectedCard)));
     html += `<div class="market-label">${m}</div>`;
     items.forEach(s => {
       const taken = s.status !== 'Open';
@@ -757,9 +764,14 @@ function filterBrowseMarket() {
 
 function updateBrowseCount() {
   const market = document.getElementById('browse-market-filter').value;
-  const open = spots.filter(s => s.status === 'Open' && (!market || s.market === market)).length;
-  const total = spots.filter(s => !market || s.market === market).length;
-  document.getElementById('browse-count').textContent = open + ' of ' + total + ' spots open' + (market ? ' in ' + market : '');
+  const card = document.getElementById('browse-card-filter').value;
+  const filtered = spots.filter(s => (!market || s.market === market) && (!card || s.cards.includes(card)));
+  const open = filtered.filter(s => s.status === 'Open').length;
+  const total = filtered.length;
+  let label = open + ' of ' + total + ' spots open';
+  if (market) label += ' in ' + market;
+  if (card) label += ' · ' + card;
+  document.getElementById('browse-count').textContent = label;
 }
 
 function populatePostVisitRestaurants() {
