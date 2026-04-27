@@ -658,8 +658,8 @@ function toggleEmployeeEmail() {
   const isEmployee = rel === 'Employee';
   wrap.style.display = isFriend ? 'flex' : 'none';
   if (!isFriend) document.getElementById('f-employee-email').value = '';
-  document.getElementById('f-email-label').textContent = isEmployee ? 'Your Seated email' : 'Your email';
-  document.getElementById('f-email').placeholder = isEmployee ? 'you@seated.com' : 'Your email';
+  document.getElementById('f-email-label').textContent = isEmployee ? 'Your Seated email' : 'Your personal email';
+  document.getElementById('f-email').placeholder = isEmployee ? 'you@seated.com' : 'your@email.com';
 }
 
 function cancelClaim() {
