@@ -162,12 +162,8 @@
             </select>
           </div>
           <div class="form-field" style="grid-column: 1 / -1;">
-            <label>Cards they have (select all that apply)</label>
-            <div id="f-cards" style="display:flex;gap:20px;flex-wrap:wrap;margin-top:8px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);">
-              <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;color:var(--text);"><input type="checkbox" value="Visa" style="width:16px;height:16px;margin:0;cursor:pointer;"> Visa</label>
-              <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;color:var(--text);"><input type="checkbox" value="Mastercard" style="width:16px;height:16px;margin:0;cursor:pointer;"> Mastercard</label>
-              <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;color:var(--text);"><input type="checkbox" value="Amex" style="width:16px;height:16px;margin:0;cursor:pointer;"> Amex</label>
-            </div>
+            <label>Card to run</label>
+            <div id="f-card-display" style="padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-size:14px;display:flex;align-items:center;gap:8px;"></div>
           </div>
         </div>
         <div class="form-actions">
@@ -396,6 +392,7 @@ const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}`;
 let spots = [];
 let pvReports = [];
 let selectedId = null;
+let selectedCard = null;
 
 async function loadFromBin() {
   try {
@@ -408,7 +405,7 @@ async function loadFromBin() {
 }
 
 async function saveToBin() {
-  const spotsData = spots.map(s => ({ id: s.id, status: s.status, claimant: s.claimant }));
+  const spotsData = spots.map(s => ({ id: s.id, cardSlots: s.cardSlots }));
   try {
     await fetch(JSONBIN_URL, {
       method: 'PUT',
@@ -436,7 +433,7 @@ function renderMap() {
   mapMarkers.forEach(m => map.removeLayer(m));
   mapMarkers = [];
   const selectedMarket = document.getElementById('browse-market-filter') ? document.getElementById('browse-market-filter').value : '';
-  const openSpots = spots.filter(s => s.status === 'Open');
+  const openSpots = spots.filter(s => s.cards.some(card => s.cardSlots[card]?.status === 'Open'));
 
   openSpots.forEach(s => {
     const isSelected = !selectedMarket || s.market === selectedMarket;
@@ -492,27 +489,37 @@ async function loadSpots() {
   pvReports = record.pvReports || [];
   spots = RESTAURANTS.map(r => {
     const s = savedSpots.find(x => x.id === r.id);
-    return s ? { ...r, status: s.status, claimant: s.claimant } : { ...r, status: 'Open', claimant: null };
+    const cardSlots = {};
+    r.cards.forEach(card => {
+      cardSlots[card] = (s && s.cardSlots && s.cardSlots[card])
+        ? s.cardSlots[card]
+        : { status: 'Open', claimant: null };
+    });
+    return { ...r, cardSlots };
   });
 
   const now = new Date();
   let anyExpired = false;
   spots.forEach(s => {
-    if (s.status === 'Claimed' && s.claimant && s.claimant.claimedAt) {
-      const claimedAt = new Date(s.claimant.claimedAt);
-      const hoursElapsed = (now - claimedAt) / (1000 * 60 * 60);
-      if (hoursElapsed >= 48) {
-        const hasReport = pvReports.some(r =>
-          r.restaurant === s.name &&
-          r.email === s.claimant.email
-        );
-        if (!hasReport) {
-          s.status = 'Open';
-          s.claimant = null;
-          anyExpired = true;
+    s.cards.forEach(card => {
+      const slot = s.cardSlots[card];
+      if (slot.status === 'Claimed' && slot.claimant && slot.claimant.claimedAt) {
+        const claimedAt = new Date(slot.claimant.claimedAt);
+        const hoursElapsed = (now - claimedAt) / (1000 * 60 * 60);
+        if (hoursElapsed >= 48) {
+          const hasReport = pvReports.some(r =>
+            r.restaurant === s.name &&
+            r.email === slot.claimant.email &&
+            r.card === card
+          );
+          if (!hasReport) {
+            slot.status = 'Open';
+            slot.claimant = null;
+            anyExpired = true;
+          }
         }
       }
-    }
+    });
   });
   if (anyExpired) await saveToBin();
   renderBrowse();
@@ -598,19 +605,23 @@ function renderBrowse() {
     const items = spots.filter(s => s.market === m && (!selectedCard || s.cards.includes(selectedCard)));
     html += `<div class="market-label">${m}</div>`;
     items.forEach(s => {
-      const taken = s.status !== 'Open';
-      html += `<div class="card ${taken ? 'taken' : ''}" id="card-${s.id}">
+      const allTaken = s.cards.every(card => s.cardSlots[card]?.status !== 'Open');
+      const cardButtons = s.cards.map(card => {
+        const slot = s.cardSlots[card];
+        const isTaken = slot?.status !== 'Open';
+        if (isTaken) {
+          return `<span style="font-size:12px;padding:6px 12px;border-radius:6px;background:var(--border);color:var(--text-3);font-weight:500;white-space:nowrap;">${card} · ${slot?.status}</span>`;
+        }
+        return `<button class="claim-btn" onclick="openForm(${s.id},'${card}')" style="font-size:12px;">Claim ${card}</button>`;
+      }).join('');
+      html += `<div class="card ${allTaken ? 'taken' : ''}" id="card-${s.id}">
         <div class="card-row">
           <div>
             <div class="card-name">${s.name}</div>
             <div class="card-addr">${s.addr}</div>
-            <div class="card-meta">
-              ${s.cards.map(cardBadge).join(' ')}
-              ${priorityBadge(s.priority)}
-              ${taken ? statusBadge(s.status) : ''}
-            </div>
+            <div class="card-meta">${priorityBadge(s.priority)}</div>
           </div>
-          <button class="claim-btn" onclick="openForm(${s.id})" ${taken ? 'disabled' : ''}>${taken ? 'Taken' : 'Claim spot'}</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">${cardButtons}</div>
         </div>
       </div>`;
     });
@@ -619,21 +630,23 @@ function renderBrowse() {
   restoList.style.display = 'block';
 }
 
-function openForm(id) {
+function openForm(id, card) {
   selectedId = id;
+  selectedCard = card;
   const s = spots.find(r => r.id === id);
   document.getElementById('form-title').textContent = s.name;
-  document.getElementById('form-sub').textContent = `${s.addr} · Pay with: ${s.cards.join(' or ')}`;
+  document.getElementById('form-sub').textContent = `${s.addr} · Claiming the ${card} slot`;
+  document.getElementById('f-card-display').innerHTML = cardBadge(card) + `<span style="font-size:13px;color:var(--text-2);margin-left:6px;">${card}</span>`;
   document.getElementById('claim-form-container').style.display = 'block';
   document.getElementById('claim-confirmation').style.display = 'none';
   ['f-name','f-email'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-rel').value = '';
-  document.querySelectorAll('#f-cards input[type=checkbox]').forEach(cb => cb.checked = false);
   setTimeout(() => document.getElementById('claim-form-container').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 
 function cancelClaim() {
   selectedId = null;
+  selectedCard = null;
   document.getElementById('claim-form-container').style.display = 'none';
 }
 
@@ -646,12 +659,12 @@ async function submitClaim() {
   const name = document.getElementById('f-name').value.trim();
   const email = document.getElementById('f-email').value.trim();
   const rel = document.getElementById('f-rel').value;
-  const cards = [...document.querySelectorAll('#f-cards input[type=checkbox]:checked')].map(cb => cb.value);
-  if (!name || !email || !rel || cards.length === 0) { alert('Please fill out all fields and select at least one card.'); return; }
+  if (!name || !email || !rel) { alert('Please fill out all fields.'); return; }
   const s = spots.find(r => r.id === selectedId);
-  if (s.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
-  s.status = 'Claimed';
-  s.claimant = { name, email, rel, card: cards.join(', '), claimedAt: new Date().toISOString() };
+  const slot = s.cardSlots[selectedCard];
+  if (slot.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
+  slot.status = 'Claimed';
+  slot.claimant = { name, email, rel, claimedAt: new Date().toISOString() };
   await saveSpots();
   try {
     emailjs.init('-t1K1x-L7JdF-y-cv');
@@ -663,7 +676,7 @@ async function submitClaim() {
       claimant_name: name,
       claimant_email: email,
       relation: rel,
-      cards: cards.join(', '),
+      cards: selectedCard,
       claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     });
     emailjs.send('service_1mz5oak', 'template_5nlix8m', {
@@ -671,14 +684,14 @@ async function submitClaim() {
       claimant_email: email,
       restaurant: s.name,
       address: s.addr,
-      cards: cards.join(', '),
+      cards: selectedCard,
     });
   } catch(e) {}
 
   document.getElementById('claim-form-container').style.display = 'none';
   document.getElementById('conf-restaurant').textContent = s.name;
   document.getElementById('conf-address').textContent = s.addr;
-  document.getElementById('conf-cards').innerHTML = s.cards.map(c => cardBadge(c)).join(' ');
+  document.getElementById('conf-cards').innerHTML = cardBadge(selectedCard);
   document.getElementById('claim-confirmation').style.display = 'block';
   document.getElementById('claim-confirmation').scrollIntoView({ behavior: 'smooth', block: 'start' });
   renderBrowse();
@@ -690,39 +703,44 @@ async function submitClaim() {
 function renderAdmin() {
   const mFilter = document.getElementById('filter-market').value;
   const sFilter = document.getElementById('filter-status').value;
-  const filtered = spots.filter(s =>
-    (!mFilter || s.market === mFilter) &&
-    (!sFilter || s.status === sFilter)
-  );
-  if (!filtered.length) {
-    document.getElementById('admin-tbody').innerHTML = `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-3);">No results found</td></tr>`;
+  const rows = [];
+  spots.forEach(s => {
+    s.cards.forEach(card => {
+      const slot = s.cardSlots[card];
+      if ((!mFilter || s.market === mFilter) && (!sFilter || slot.status === sFilter)) {
+        rows.push({ s, card, slot });
+      }
+    });
+  });
+  if (!rows.length) {
+    document.getElementById('admin-tbody').innerHTML = `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">No results found</td></tr>`;
     return;
   }
   let html = '';
-  filtered.forEach(s => {
-    const c = s.claimant;
+  rows.forEach(({ s, card, slot }) => {
+    const c = slot.claimant;
     const claimedDate = c && c.claimedAt ? new Date(c.claimedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     html += `<tr>
       <td><div style="font-weight:500;font-size:13px;">${s.name}</div><div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;margin-top:2px;">${s.addr}</div></td>
       <td style="color:var(--text-2);">${s.market}</td>
-      <td>${s.cards.map(cardBadge).join(' ')}</td>
+      <td>${cardBadge(card)}</td>
       <td>${priorityBadge(s.priority)}</td>
-        <td>${statusBadge(s.status)}</td>
-      <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div><div style="color:var(--text-3);margin-top:1px;">${c.rel} · ${c.card}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
+      <td>${statusBadge(slot.status)}</td>
+      <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div><div style="color:var(--text-3);margin-top:1px;">${c.rel}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
       <td>
-        ${s.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'Confirmed')">Confirm</button>` : ''}
-        ${['Claimed','Confirmed'].includes(s.status) ? `<button class="action-btn" onclick="setStatus(${s.id},'Closed')">Close</button>` : ''}
-        ${s.status !== 'Open' ? `<button class="action-btn" onclick="setStatus(${s.id},'Open')">Reopen</button>` : ''}
+        ${slot.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Confirmed')">Confirm</button>` : ''}
+        ${['Claimed','Confirmed'].includes(slot.status) ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Closed')">Close</button>` : ''}
+        ${slot.status !== 'Open' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Open')">Reopen</button>` : ''}
       </td>
     </tr>`;
   });
   document.getElementById('admin-tbody').innerHTML = html;
 }
 
-async function setStatus(id, status) {
+async function setStatus(id, card, status) {
   const s = spots.find(r => r.id === id);
-  s.status = status;
-  if (status === 'Open') s.claimant = null;
+  s.cardSlots[card].status = status;
+  if (status === 'Open') s.cardSlots[card].claimant = null;
   await saveSpots();
   renderBrowse();
   renderMap();
@@ -731,10 +749,11 @@ async function setStatus(id, status) {
 }
 
 function updateStats() {
-  document.getElementById('stat-total').textContent = spots.length;
-  document.getElementById('stat-open').textContent = spots.filter(s => s.status === 'Open').length;
-  document.getElementById('stat-claimed').textContent = spots.filter(s => s.status === 'Claimed').length;
-  document.getElementById('stat-confirmed').textContent = spots.filter(s => s.status === 'Confirmed').length;
+  const allSlots = spots.flatMap(s => s.cards.map(card => s.cardSlots[card]));
+  document.getElementById('stat-total').textContent = allSlots.length;
+  document.getElementById('stat-open').textContent = allSlots.filter(sl => sl.status === 'Open').length;
+  document.getElementById('stat-claimed').textContent = allSlots.filter(sl => sl.status === 'Claimed').length;
+  document.getElementById('stat-confirmed').textContent = allSlots.filter(sl => sl.status === 'Confirmed').length;
 }
 
 function populateMarketFilter() {
@@ -765,10 +784,16 @@ function filterBrowseMarket() {
 function updateBrowseCount() {
   const market = document.getElementById('browse-market-filter').value;
   const card = document.getElementById('browse-card-filter').value;
-  const filtered = spots.filter(s => (!market || s.market === market) && (!card || s.cards.includes(card)));
-  const open = filtered.filter(s => s.status === 'Open').length;
-  const total = filtered.length;
-  let label = open + ' of ' + total + ' spots open';
+  let openSlots = 0, totalSlots = 0;
+  spots.forEach(s => {
+    if (market && s.market !== market) return;
+    s.cards.forEach(c => {
+      if (card && c !== card) return;
+      totalSlots++;
+      if (s.cardSlots[c]?.status === 'Open') openSlots++;
+    });
+  });
+  let label = openSlots + ' of ' + totalSlots + ' slots open';
   if (market) label += ' in ' + market;
   if (card) label += ' · ' + card;
   document.getElementById('browse-count').textContent = label;
