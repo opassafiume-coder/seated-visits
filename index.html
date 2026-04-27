@@ -150,8 +150,8 @@
             <input type="text" id="f-name" placeholder="Full name" />
           </div>
           <div class="form-field">
-            <label>Your Seated email</label>
-            <input type="email" id="f-email" placeholder="you@seated.com" />
+            <label id="f-email-label">Your email</label>
+            <input type="email" id="f-email" placeholder="Your email" />
           </div>
           <div class="form-field">
             <label>Who's dining?</label>
@@ -646,14 +646,20 @@ function openForm(id, card) {
   ['f-name','f-email','f-employee-email'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-rel').value = '';
   document.getElementById('f-employee-email-wrap').style.display = 'none';
+  document.getElementById('f-email-label').textContent = 'Your email';
+  document.getElementById('f-email').placeholder = 'Your email';
   setTimeout(() => document.getElementById('claim-form-container').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 
 function toggleEmployeeEmail() {
   const rel = document.getElementById('f-rel').value;
   const wrap = document.getElementById('f-employee-email-wrap');
-  wrap.style.display = rel === 'Friend / Family of employee' ? 'flex' : 'none';
-  if (rel !== 'Friend / Family of employee') document.getElementById('f-employee-email').value = '';
+  const isFriend = rel === 'Friend / Family of employee';
+  const isEmployee = rel === 'Employee';
+  wrap.style.display = isFriend ? 'flex' : 'none';
+  if (!isFriend) document.getElementById('f-employee-email').value = '';
+  document.getElementById('f-email-label').textContent = isEmployee ? 'Your Seated email' : 'Your email';
+  document.getElementById('f-email').placeholder = isEmployee ? 'you@seated.com' : 'Your email';
 }
 
 function cancelClaim() {
@@ -904,3 +910,4 @@ loadSpots();
 </script>
 </body>
 </html>
+
