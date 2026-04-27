@@ -155,11 +155,16 @@
           </div>
           <div class="form-field">
             <label>Who's dining?</label>
-            <select id="f-rel">
+            <select id="f-rel" onchange="toggleEmployeeEmail()">
               <option value="">Select one</option>
               <option>Employee</option>
               <option>Friend / Family of employee</option>
             </select>
+          </div>
+          <div class="form-field" id="f-employee-email-wrap" style="display:none;">
+            <label>Employee's Seated email</label>
+            <input type="email" id="f-employee-email" placeholder="employee@seated.com" />
+            <div style="font-size:12px;color:var(--text-2);margin-top:4px;">Enter the Seated email of the employee you belong to.</div>
           </div>
           <div class="form-field" style="grid-column: 1 / -1;">
             <label>Card to run</label>
@@ -638,9 +643,17 @@ function openForm(id, card) {
   document.getElementById('f-card-display').innerHTML = cardBadge(card) + `<span style="font-size:13px;color:var(--text-2);margin-left:6px;">${card}</span>`;
   document.getElementById('claim-form-container').style.display = 'block';
   document.getElementById('claim-confirmation').style.display = 'none';
-  ['f-name','f-email'].forEach(id => document.getElementById(id).value = '');
+  ['f-name','f-email','f-employee-email'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-rel').value = '';
+  document.getElementById('f-employee-email-wrap').style.display = 'none';
   setTimeout(() => document.getElementById('claim-form-container').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+}
+
+function toggleEmployeeEmail() {
+  const rel = document.getElementById('f-rel').value;
+  const wrap = document.getElementById('f-employee-email-wrap');
+  wrap.style.display = rel === 'Friend / Family of employee' ? 'flex' : 'none';
+  if (rel !== 'Friend / Family of employee') document.getElementById('f-employee-email').value = '';
 }
 
 function cancelClaim() {
@@ -658,12 +671,15 @@ async function submitClaim() {
   const name = document.getElementById('f-name').value.trim();
   const email = document.getElementById('f-email').value.trim();
   const rel = document.getElementById('f-rel').value;
+  const employeeEmail = document.getElementById('f-employee-email').value.trim();
+  const isFriendFamily = rel === 'Friend / Family of employee';
   if (!name || !email || !rel) { alert('Please fill out all fields.'); return; }
+  if (isFriendFamily && !employeeEmail) { alert('Please enter the employee\'s Seated email.'); return; }
   const s = spots.find(r => r.id === selectedId);
   const slot = s.cardSlots[selectedCard];
   if (slot.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
   slot.status = 'Claimed';
-  slot.claimant = { name, email, rel, claimedAt: new Date().toISOString() };
+  slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt: new Date().toISOString() };
   await saveSpots();
   try {
     emailjs.init('-t1K1x-L7JdF-y-cv');
@@ -675,6 +691,7 @@ async function submitClaim() {
       claimant_name: name,
       claimant_email: email,
       relation: rel,
+      employee_email: isFriendFamily ? employeeEmail : 'N/A',
       cards: selectedCard,
       claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     });
@@ -685,6 +702,16 @@ async function submitClaim() {
       address: s.addr,
       cards: selectedCard,
     });
+    // Also notify the employee if friend/family
+    if (isFriendFamily) {
+      emailjs.send('service_1mz5oak', 'template_5nlix8m', {
+        claimant_name: name,
+        claimant_email: employeeEmail,
+        restaurant: s.name,
+        address: s.addr,
+        cards: selectedCard,
+      });
+    }
   } catch(e) {}
 
   document.getElementById('claim-form-container').style.display = 'none';
@@ -724,7 +751,7 @@ function renderAdmin() {
       <td style="color:var(--text-2);">${s.market}</td>
       <td>${cardBadge(card)}</td>
       <td>${statusBadge(slot.status)}</td>
-      <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div><div style="color:var(--text-3);margin-top:1px;">${c.rel}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
+      <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div>${c.employeeEmail ? `<div style="color:var(--text-3);margin-top:1px;">Employee: ${c.employeeEmail}</div>` : ''}<div style="color:var(--text-3);margin-top:1px;">${c.rel}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
       <td>
         ${slot.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Confirmed')">Confirm</button>` : ''}
         ${['Claimed','Confirmed'].includes(slot.status) ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Closed')">Close</button>` : ''}
