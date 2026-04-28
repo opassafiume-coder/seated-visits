@@ -218,9 +218,11 @@
           </div>
           <div class="form-field" style="grid-column: 1 / -1;">
             <label>Restaurant visited</label>
-            <select id="pv-restaurant">
-              <option value="">Select one</option>
-            </select>
+            <div style="position:relative;">
+              <input type="text" id="pv-restaurant-search" placeholder="Type to search..." autocomplete="off" oninput="filterPvRestaurants()" onfocus="showPvDropdown()" onblur="hidePvDropdown()" />
+              <input type="hidden" id="pv-restaurant" />
+              <div id="pv-restaurant-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;max-height:220px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.08);margin-top:2px;"></div>
+            </div>
           </div>
           <div class="form-field">
             <label>Date of visit</label>
@@ -841,12 +843,54 @@ function updateBrowseCount() {
 }
 
 function populatePostVisitRestaurants() {
-  const sel = document.getElementById('pv-restaurant');
-  RESTAURANTS.forEach(r => {
-    const o = document.createElement('option');
-    o.value = r.name; o.textContent = `${r.name} (${r.market})`;
-    sel.appendChild(o);
-  });
+  // restaurants are stored in RESTAURANTS, search is handled dynamically
+}
+
+function filterPvRestaurants() {
+  const query = document.getElementById('pv-restaurant-search').value.toLowerCase();
+  const dropdown = document.getElementById('pv-restaurant-dropdown');
+  const matches = RESTAURANTS.filter(r =>
+    r.name.toLowerCase().includes(query) || r.market.toLowerCase().includes(query)
+  );
+  renderPvDropdown(matches);
+  dropdown.style.display = 'block';
+  // Clear selection if user is typing again
+  document.getElementById('pv-restaurant').value = '';
+}
+
+function renderPvDropdown(matches) {
+  const dropdown = document.getElementById('pv-restaurant-dropdown');
+  if (!matches.length) {
+    dropdown.innerHTML = `<div style="padding:10px 12px;font-size:13px;color:var(--text-3);">No restaurants found</div>`;
+    return;
+  }
+  dropdown.innerHTML = matches.map(r => `
+    <div onmousedown="selectPvRestaurant('${r.name.replace(/'/g, "\\'")}', '${r.market}')"
+      style="padding:10px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);"
+      onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+      <span style="font-weight:500;">${r.name}</span>
+      <span style="color:var(--text-3);margin-left:6px;font-size:12px;">${r.market}</span>
+    </div>
+  `).join('');
+}
+
+function selectPvRestaurant(name, market) {
+  document.getElementById('pv-restaurant').value = name;
+  document.getElementById('pv-restaurant-search').value = `${name} (${market})`;
+  document.getElementById('pv-restaurant-dropdown').style.display = 'none';
+}
+
+function showPvDropdown() {
+  const query = document.getElementById('pv-restaurant-search').value;
+  const matches = query
+    ? RESTAURANTS.filter(r => r.name.toLowerCase().includes(query.toLowerCase()) || r.market.toLowerCase().includes(query.toLowerCase()))
+    : RESTAURANTS;
+  renderPvDropdown(matches);
+  document.getElementById('pv-restaurant-dropdown').style.display = 'block';
+}
+
+function hidePvDropdown() {
+  setTimeout(() => { document.getElementById('pv-restaurant-dropdown').style.display = 'none'; }, 150);
 }
 
 async function submitPostVisit() {
@@ -892,7 +936,7 @@ async function submitPostVisit() {
 
   document.getElementById('pv-success').style.display = 'block';
   ['pv-name','pv-email','pv-amount','pv-notes','pv-last4','pv-venmo'].forEach(id => document.getElementById(id).value = '');
-  ['pv-restaurant','pv-card','pv-date'].forEach(id => document.getElementById(id).value = '');
+  ['pv-restaurant','pv-restaurant-search','pv-card','pv-date'].forEach(id => document.getElementById(id).value = '');
 }
 
 async function updatePvReceipt(idx, value) {
