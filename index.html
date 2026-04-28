@@ -191,8 +191,11 @@
             <span id="conf-cards"></span>
           </div>
         </div>
-        <div style="background:#FFF8EC;border:1px solid #F5C97A;border-radius:8px;padding:10px 14px;font-size:13px;color:#7A4E00;margin-bottom:1.5rem;">
+        <div style="background:#FFF8EC;border:1px solid #F5C97A;border-radius:8px;padding:10px 14px;font-size:13px;color:#7A4E00;margin-bottom:1rem;">
           <strong>Heads up:</strong> You have <strong>48 hours</strong> from now to complete your visit. If the visit isn't done in time, your spot will be released back into the pool.
+        </div>
+        <div style="background:#EBF3FF;border:1px solid #A8C8F0;border-radius:8px;padding:10px 14px;font-size:13px;color:#1A4A8A;margin-bottom:1.5rem;">
+          <strong>Before you go:</strong> Make sure you have the <span id="conf-card-reminder" style="font-weight:600;"></span> card you claimed <strong>and that it's already linked in the Seated app</strong> before heading to the restaurant.
         </div>
         <button class="btn-ghost" onclick="showSignupList()" style="width:100%;">← Back to sign-up list</button>
       </div>
@@ -724,6 +727,7 @@ async function submitClaim() {
   document.getElementById('conf-restaurant').textContent = s.name;
   document.getElementById('conf-address').textContent = s.addr;
   document.getElementById('conf-cards').innerHTML = cardBadge(selectedCard);
+  document.getElementById('conf-card-reminder').textContent = selectedCard;
   document.getElementById('claim-confirmation').style.display = 'block';
   document.getElementById('claim-confirmation').scrollIntoView({ behavior: 'smooth', block: 'start' });
   renderBrowse();
