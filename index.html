@@ -244,6 +244,10 @@
             <label>Last 4 digits of card</label>
             <input type="text" id="pv-last4" placeholder="e.g. 4242" maxlength="4" pattern="[0-9]{4}" />
           </div>
+          <div class="form-field">
+            <label>Venmo handle</label>
+            <input type="text" id="pv-venmo" placeholder="@yourhandle" />
+          </div>
           <div class="form-field" style="grid-column: 1 / -1;">
             <label>Any notes or issues?</label>
             <textarea id="pv-notes" placeholder="Anything else Olivia should know about the visit..." style="font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);outline:none;width:100%;resize:vertical;min-height:80px;transition:border-color 0.15s;"></textarea>
@@ -313,6 +317,7 @@
             <th>Card</th>
             <th>Last 4</th>
             <th>Amount</th>
+            <th>Venmo</th>
             <th>Their notes</th>
             <th>Receipt received</th>
             <th>Status</th>
@@ -562,6 +567,7 @@ function renderPvReports() {
     <td>${cardBadge(r.card)}</td>
     <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${r.last4 || '—'}</td>
     <td style="font-size:13px;font-family:'DM Mono',monospace;">$${parseFloat(r.amount).toFixed(2)}</td>
+    <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${r.venmo || '—'}</td>
     <td style="font-size:12px;color:var(--text-2);">${r.notes || '—'}</td>
     <td style="text-align:center;"><input type="checkbox" ${r.receiptReceived ? 'checked' : ''} onchange="updatePvReceipt(${idx}, this.checked)" style="width:16px;height:16px;cursor:pointer;" /></td>
     <td>
@@ -851,6 +857,7 @@ async function submitPostVisit() {
   const amount = document.getElementById('pv-amount').value.trim();
   const card = document.getElementById('pv-card').value;
   const last4 = document.getElementById('pv-last4').value.trim();
+  const venmo = document.getElementById('pv-venmo').value.trim();
   const notes = document.getElementById('pv-notes').value.trim();
 
   document.getElementById('pv-error').style.display = 'none';
@@ -875,7 +882,7 @@ async function submitPostVisit() {
   } catch(e) {}
 
   pvReports.push({
-    name, email, restaurant, visitDate, card, last4,
+    name, email, restaurant, visitDate, card, last4, venmo,
     amount: parseFloat(amount).toFixed(2),
     notes,
     submittedAt: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -884,7 +891,7 @@ async function submitPostVisit() {
   renderPvReports();
 
   document.getElementById('pv-success').style.display = 'block';
-  ['pv-name','pv-email','pv-amount','pv-notes','pv-last4'].forEach(id => document.getElementById(id).value = '');
+  ['pv-name','pv-email','pv-amount','pv-notes','pv-last4','pv-venmo'].forEach(id => document.getElementById(id).value = '');
   ['pv-restaurant','pv-card','pv-date'].forEach(id => document.getElementById(id).value = '');
 }
 
