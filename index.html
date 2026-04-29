@@ -676,10 +676,18 @@ function renderBrowse() {
       const cardButtons = s.cards.map(card => {
         const slot = s.cardSlots[card];
         const isTaken = slot?.status !== 'Open';
+        const reimb = s.reimb && s.reimb[card] ? s.reimb[card] : 0;
+        const reimbLabel = reimb > 0 ? `<div style="font-size:11px;color:var(--text-3);margin-top:2px;text-align:center;">up to $${reimb}</div>` : '';
         if (isTaken) {
-          return `<span style="font-size:12px;padding:6px 12px;border-radius:6px;background:var(--border);color:var(--text-3);font-weight:500;white-space:nowrap;">${card} · ${slot?.status}</span>`;
+          return `<div style="display:flex;flex-direction:column;align-items:center;">
+            <span style="font-size:12px;padding:6px 12px;border-radius:6px;background:var(--border);color:var(--text-3);font-weight:500;white-space:nowrap;">${card} · ${slot?.status}</span>
+            ${reimbLabel}
+          </div>`;
         }
-        return `<button class="claim-btn" onclick="openForm(${s.id},'${card}')" style="font-size:12px;">Claim ${card}</button>`;
+        return `<div style="display:flex;flex-direction:column;align-items:center;">
+          <button class="claim-btn" onclick="openForm(${s.id},'${card}')" style="font-size:12px;">Claim ${card}</button>
+          ${reimbLabel}
+        </div>`;
       }).join('');
       html += `<div class="card ${allTaken ? 'taken' : ''}" id="card-${s.id}">
         <div class="card-row">
