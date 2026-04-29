@@ -424,6 +424,9 @@ async function loadRestaurantsFromSheet() {
       const revVisa = parseFloat((obj['Rev - Visa'] || '0').replace(/[^0-9.]/g, '')) || 0;
       const revMC   = parseFloat((obj['Rev - MC']   || '0').replace(/[^0-9.]/g, '')) || 0;
       const revAmex = parseFloat((obj['Rev - Amex'] || '0').replace(/[^0-9.]/g, '')) || 0;
+      const reimbVisa = parseFloat((obj['Reimb - Visa'] || '0').replace(/[^0-9.]/g, '')) || 0;
+      const reimbMC   = parseFloat((obj['Reimb - MC']   || '0').replace(/[^0-9.]/g, '')) || 0;
+      const reimbAmex = parseFloat((obj['Reimb - Amex'] || '0').replace(/[^0-9.]/g, '')) || 0;
       rows.push({
         id: rows.length + 1,
         name: obj['Name'] || '',
@@ -435,6 +438,7 @@ async function loadRestaurantsFromSheet() {
         lat: parseFloat(obj['Latitude']) || 39.5,
         lng: parseFloat(obj['Longitude']) || -98.35,
         rev: { Visa: Math.round(revVisa), Mastercard: Math.round(revMC), Amex: Math.round(revAmex) },
+        reimb: { Visa: Math.round(reimbVisa), Mastercard: Math.round(reimbMC), Amex: Math.round(reimbAmex) },
       });
     }
     RESTAURANTS = rows;
@@ -700,11 +704,11 @@ function openForm(id, card) {
   document.getElementById('form-title').textContent = s.name;
   document.getElementById('form-sub').textContent = `${s.addr} · Claiming the ${card} slot`;
   document.getElementById('f-card-display').innerHTML = cardBadge(card) + `<span style="font-size:13px;color:var(--text-2);margin-left:6px;">${card}</span>`;
-  const rev = s.rev && s.rev[card] ? s.rev[card] : 0;
+  const reimb = s.reimb && s.reimb[card] ? s.reimb[card] : 0;
   const reimbEl = document.getElementById('f-reimbursement-note');
   if (reimbEl) {
-    if (rev > 0) {
-      reimbEl.innerHTML = `<strong>Reimbursement cap:</strong> Up to <strong>$${rev}</strong> for ${card} spend at this location. Olivia will confirm the exact amount after verifying your receipt.`;
+    if (reimb > 0) {
+      reimbEl.innerHTML = `<strong>Reimbursement cap:</strong> Up to <strong>$${reimb}</strong> for ${card} spend at this location. Olivia will confirm the exact amount after verifying your receipt.`;
       reimbEl.style.display = 'block';
     } else {
       reimbEl.style.display = 'none';
