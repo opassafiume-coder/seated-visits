@@ -937,7 +937,8 @@ async function submitPostVisit() {
   const ccpostFile = document.getElementById('pv-ccpost').files[0];
 
   document.getElementById('pv-error').style.display = 'none';
-  if (!name || !email || !restaurant || !visitDate || !amount || !card || !last4) {
+  if (!name || !email || !restaurant || !visitDate || !amount || !card || !last4 || !receiptFile || !ccpostFile) {
+    document.getElementById('pv-error').textContent = !receiptFile ? 'Please upload your receipt photo.' : !ccpostFile ? 'Please upload your CC posting screenshot.' : 'Please fill out all required fields.';
     document.getElementById('pv-error').style.display = 'block';
     return;
   }
