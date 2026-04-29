@@ -421,8 +421,6 @@ async function loadRestaurantsFromSheet() {
       const obj = {};
       headers.forEach((h, idx) => obj[h] = clean[idx] || '');
       const gmv = parseFloat((obj['GMV / mo'] || '0').replace(/[^0-9.]/g, '')) || 0;
-      const include = (obj['Include? (YES/NO)'] || '').toUpperCase().trim();
-      if (include !== 'YES') continue;
       const revVisa = parseFloat((obj['Rev - Visa'] || '0').replace(/[^0-9.]/g, '')) || 0;
       const revMC   = parseFloat((obj['Rev - MC']   || '0').replace(/[^0-9.]/g, '')) || 0;
       const revAmex = parseFloat((obj['Rev - Amex'] || '0').replace(/[^0-9.]/g, '')) || 0;
