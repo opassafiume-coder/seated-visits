@@ -270,7 +270,7 @@
         <div class="form-actions">
           <button class="btn-primary" onclick="submitPostVisit()">Submit report</button>
         </div>
-        <div id="pv-success" style="display:none;" class="success-banner">Report submitted! Don't forget to email your receipt and CC posting screenshot to opassafiume@seatedapp.io.</div>
+        <div id="pv-success" style="display:none;" class="success-banner">Report submitted! A summary has been sent to your email and to Olivia.</div>
         <div id="pv-error" style="display:none;background:#FFF0EE;color:#8C2418;border-radius:6px;padding:12px 16px;font-size:13px;font-weight:500;margin-top:12px;">Please fill out all required fields.</div>
       </div>
     </div>
@@ -943,21 +943,6 @@ async function submitPostVisit() {
     return;
   }
 
-  try {
-    emailjs.send('service_1mz5oak', 'template_us88agp', {
-      to_email: 'opassafiume@seatedapp.io',
-      subject: `Post-visit report: ${restaurant}`,
-      claimant_name: name,
-      claimant_email: email,
-      restaurant: restaurant,
-      visit_date: visitDate,
-      card_used: card,
-      last_four: last4,
-      notes: notes || 'None',
-      claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-    });
-  } catch(e) {}
-
   // Upload files to ImgBB
   const submitBtn = document.querySelector('#view-postvisit .btn-primary');
   submitBtn.textContent = 'Uploading files…';
@@ -977,6 +962,29 @@ async function submitPostVisit() {
   });
   await savePvReports();
   renderPvReports();
+
+  // Send summary emails to Olivia and the submitter
+  const summaryData = {
+    claimant_name: name,
+    claimant_email: email,
+    restaurant: restaurant,
+    visit_date: visitDate,
+    card_used: card,
+    last_four: last4,
+    amount: `$${parseFloat(amount).toFixed(2)}`,
+    venmo: venmo || 'Not provided',
+    notes: notes || 'None',
+    receipt_url: receiptUrl || 'Not uploaded',
+    ccpost_url: ccpostUrl || 'Not uploaded',
+    claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  };
+  try {
+    emailjs.init('-t1K1x-L7JdF-y-cv');
+    // Email to Olivia
+    emailjs.send('service_1mz5oak', 'template_us88agp', { ...summaryData, to_email: 'opassafiume@seatedapp.io' });
+    // Confirmation to submitter
+    emailjs.send('service_1mz5oak', 'template_us88agp', { ...summaryData, to_email: email });
+  } catch(e) {}
 
   document.getElementById('pv-success').style.display = 'block';
   ['pv-name','pv-email','pv-amount','pv-notes','pv-last4','pv-venmo'].forEach(id => document.getElementById(id).value = '');
