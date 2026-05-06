@@ -212,86 +212,82 @@
     <div style="max-width: 560px;">
       <h2 style="font-size:18px;font-weight:500;margin-bottom:6px;">Post-visit report</h2>
       <p style="font-size:14px;color:var(--text-2);margin-bottom:1.5rem;">Fill this out after your restaurant visit. Questions? Reach out to Olivia at <strong>(502) 296-9770</strong> or <a href="mailto:opassafiume@seatedapp.io" style="color:var(--text);">opassafiume@seatedapp.io</a>.</p>
-      <div class="form-wrap" style="margin-top:0;">
+
+      <!-- Step 1: Email lookup -->
+      <div id="pv-lookup" class="form-wrap" style="margin-top:0;">
         <div class="form-grid">
-          <div class="form-field">
-            <label>Your name</label>
-            <input type="text" id="pv-name" placeholder="Full name" />
-          </div>
-          <div class="form-field">
-            <label id="pv-email-label">Your email</label>
-            <input type="email" id="pv-email" placeholder="Your email" />
-          </div>
-          <div class="form-field">
-            <label>Who's dining?</label>
-            <select id="pv-rel" onchange="togglePvEmployeeEmail()">
-              <option value="">Select one</option>
-              <option>Employee</option>
-              <option>Friend / Family of employee</option>
-            </select>
-          </div>
-          <div class="form-field" id="pv-employee-email-wrap" style="display:none; grid-column: 1 / -1;">
-            <label>Employee's Seated email</label>
-            <input type="email" id="pv-employee-email" placeholder="employee@seatedapp.io" />
-            <div style="font-size:12px;color:var(--text-2);margin-top:4px;">Enter the Seated email of the employee you belong to.</div>
-          </div>
           <div class="form-field" style="grid-column: 1 / -1;">
-            <label>Restaurant visited</label>
-            <div style="position:relative;">
-              <input type="text" id="pv-restaurant-search" placeholder="Type to search..." autocomplete="off" oninput="filterPvRestaurants()" onfocus="showPvDropdown()" onblur="hidePvDropdown()" />
-              <input type="hidden" id="pv-restaurant" />
-              <div id="pv-restaurant-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;max-height:220px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.08);margin-top:2px;"></div>
-            </div>
-          </div>
-          <div class="form-field">
-            <label>Date of visit</label>
-            <input type="date" id="pv-date" />
-          </div>
-          <div class="form-field">
-            <label>Total amount spent</label>
-            <input type="number" id="pv-amount" placeholder="e.g. 142.50" min="0" step="0.01" />
-          </div>
-          <div class="form-field">
-            <label>Card used</label>
-            <select id="pv-card">
-              <option value="">Select one</option>
-              <option>Visa</option>
-              <option>Mastercard</option>
-              <option>Amex</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label>Last 4 digits of card</label>
-            <input type="text" id="pv-last4" placeholder="e.g. 4242" maxlength="4" pattern="[0-9]{4}" />
-          </div>
-          <div class="form-field" style="grid-column: 1 / -1;">
-            <div style="background:#EBF3FF;border:1px solid #A8C8F0;border-radius:8px;padding:10px 14px;font-size:13px;color:#1A4A8A;">
-              <strong>Reimbursement info:</strong> Once you submit, I'll verify your receipt and credit card posting. After both are confirmed, I'll send your reimbursement via Venmo — add your handle below so I know where to send it.
-            </div>
-          </div>
-          <div class="form-field">
-            <label>Venmo handle</label>
-            <input type="text" id="pv-venmo" placeholder="@yourhandle" />
-          </div>
-          <div class="form-field" style="grid-column: 1 / -1;">
-            <label>Any notes or issues?</label>
-            <textarea id="pv-notes" placeholder="Anything else Olivia should know about the visit..." style="font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);outline:none;width:100%;resize:vertical;min-height:80px;transition:border-color 0.15s;"></textarea>
-          </div>
-          <div class="form-field" style="grid-column: 1 / -1;">
-            <label>Receipt photo</label>
-            <input type="file" id="pv-receipt" accept="image/*,.pdf" style="padding:7px 12px;cursor:pointer;" />
-          </div>
-          <div class="form-field" style="grid-column: 1 / -1;">
-            <label>CC posting screenshot</label>
-            <input type="file" id="pv-ccpost" accept="image/*" style="padding:7px 12px;cursor:pointer;" />
+            <label>Your email</label>
+            <input type="email" id="pv-lookup-email" placeholder="Enter the email you used to claim your spot" />
           </div>
         </div>
         <div class="form-actions">
-          <button class="btn-primary" onclick="submitPostVisit()">Submit report</button>
+          <button class="btn-primary" onclick="lookupClaims()">Find my visits</button>
         </div>
-        <div id="pv-success" style="display:none;" class="success-banner">Report submitted! A summary has been sent to your email and to Olivia. Questions? <strong>(502) 296-9770</strong> · <a href="mailto:opassafiume@seatedapp.io" style="color:inherit;">opassafiume@seatedapp.io</a></div>
-        <div id="pv-error" style="display:none;background:#FFF0EE;color:#8C2418;border-radius:6px;padding:12px 16px;font-size:13px;font-weight:500;margin-top:12px;">Please fill out all required fields.</div>
+        <div id="pv-lookup-error" style="display:none;background:#FFF0EE;color:#8C2418;border-radius:6px;padding:12px 16px;font-size:13px;font-weight:500;margin-top:12px;"></div>
       </div>
+
+      <!-- Step 2: Pick a visit -->
+      <div id="pv-pick" style="display:none;margin-top:0;">
+        <div style="font-size:14px;font-weight:500;margin-bottom:10px;">Select the visit you're reporting on:</div>
+        <div id="pv-claims-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:1rem;"></div>
+        <button class="btn-ghost" onclick="resetPvLookup()" style="font-size:13px;">← Use a different email</button>
+      </div>
+
+      <!-- Step 3: Report form (pre-filled) -->
+      <div id="pv-form" style="display:none;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:14px;font-weight:500;" id="pv-prefill-name"></div>
+            <div style="font-size:12px;color:var(--text-2);margin-top:2px;" id="pv-prefill-addr"></div>
+          </div>
+          <div id="pv-prefill-card"></div>
+        </div>
+        <div class="form-wrap" style="margin-top:0;">
+          <div class="form-grid">
+            <div class="form-field">
+              <label>Date of visit</label>
+              <input type="date" id="pv-date" />
+            </div>
+            <div class="form-field">
+              <label>Total amount spent</label>
+              <input type="number" id="pv-amount" placeholder="e.g. 142.50" min="0" step="0.01" />
+            </div>
+            <div class="form-field">
+              <label>Last 4 digits of card</label>
+              <input type="text" id="pv-last4" placeholder="e.g. 4242" maxlength="4" pattern="[0-9]{4}" />
+            </div>
+            <div class="form-field">
+              <label>Venmo handle</label>
+              <input type="text" id="pv-venmo" placeholder="@yourhandle" />
+            </div>
+            <div class="form-field" style="grid-column: 1 / -1;">
+              <div style="background:#EBF3FF;border:1px solid #A8C8F0;border-radius:8px;padding:10px 14px;font-size:13px;color:#1A4A8A;">
+                <strong>Reimbursement info:</strong> Once you submit, I'll verify your receipt and credit card posting. After both are confirmed, I'll send your reimbursement via Venmo — add your handle above so I know where to send it.
+              </div>
+            </div>
+            <div class="form-field" style="grid-column: 1 / -1;">
+              <label>Any notes or issues?</label>
+              <textarea id="pv-notes" placeholder="Anything else Olivia should know about the visit..." style="font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);outline:none;width:100%;resize:vertical;min-height:80px;transition:border-color 0.15s;"></textarea>
+            </div>
+            <div class="form-field" style="grid-column: 1 / -1;">
+              <label>Receipt photo</label>
+              <input type="file" id="pv-receipt" accept="image/*,.pdf" style="padding:7px 12px;cursor:pointer;" />
+            </div>
+            <div class="form-field" style="grid-column: 1 / -1;">
+              <label>CC posting screenshot</label>
+              <input type="file" id="pv-ccpost" accept="image/*" style="padding:7px 12px;cursor:pointer;" />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" onclick="submitPostVisit()">Submit report</button>
+            <button class="btn-ghost" onclick="resetPvLookup()">← Start over</button>
+          </div>
+          <div id="pv-success" style="display:none;" class="success-banner">Report submitted! A summary has been sent to your email and to Olivia. Questions? <strong>(502) 296-9770</strong> · <a href="mailto:opassafiume@seatedapp.io" style="color:inherit;">opassafiume@seatedapp.io</a></div>
+          <div id="pv-error" style="display:none;background:#FFF0EE;color:#8C2418;border-radius:6px;padding:12px 16px;font-size:13px;font-weight:500;margin-top:12px;">Please fill out all required fields.</div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -975,42 +971,107 @@ function hidePvDropdown() {
   setTimeout(() => { document.getElementById('pv-restaurant-dropdown').style.display = 'none'; }, 150);
 }
 
+// ── Post-visit: email lookup ──────────────────────────────────
+
+let pvSelectedClaim = null; // { spot, card, claimant }
+
+function lookupClaims() {
+  const email = document.getElementById('pv-lookup-email').value.trim().toLowerCase();
+  const errEl = document.getElementById('pv-lookup-error');
+  errEl.style.display = 'none';
+  if (!email) { errEl.textContent = 'Please enter your email.'; errEl.style.display = 'block'; return; }
+
+  // Find all claimed slots matching this email
+  const matches = [];
+  spots.forEach(s => {
+    s.cards.forEach(card => {
+      const slot = s.cardSlots[card];
+      if (slot?.status === 'Claimed' && slot?.claimant?.email?.toLowerCase() === email) {
+        matches.push({ spot: s, card, claimant: slot.claimant });
+      }
+    });
+  });
+
+  if (matches.length === 0) {
+    errEl.textContent = 'No outstanding claims found for that email. Make sure you use the same email you claimed with.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // Show the pick step
+  document.getElementById('pv-lookup').style.display = 'none';
+  document.getElementById('pv-pick').style.display = 'block';
+
+  const list = document.getElementById('pv-claims-list');
+  list.innerHTML = matches.map((m, i) => `
+    <div onclick="selectPvClaim(${i})" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#1A1814'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:14px;font-weight:500;">${m.spot.name}</div>
+          <div style="font-size:12px;color:var(--text-2);margin-top:2px;">${m.spot.addr}</div>
+        </div>
+        ${cardBadge(m.card)}
+      </div>
+    </div>
+  `).join('');
+
+  // Store matches globally for selection
+  window._pvMatches = matches;
+}
+
+function selectPvClaim(i) {
+  const m = window._pvMatches[i];
+  pvSelectedClaim = m;
+
+  document.getElementById('pv-pick').style.display = 'none';
+  document.getElementById('pv-form').style.display = 'block';
+  document.getElementById('pv-prefill-name').textContent = m.spot.name;
+  document.getElementById('pv-prefill-addr').textContent = m.spot.addr;
+  document.getElementById('pv-prefill-card').innerHTML = cardBadge(m.card);
+  document.getElementById('pv-success').style.display = 'none';
+  document.getElementById('pv-error').style.display = 'none';
+  ['pv-date','pv-amount','pv-last4','pv-venmo','pv-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pv-receipt').value = '';
+  document.getElementById('pv-ccpost').value = '';
+}
+
+function resetPvLookup() {
+  pvSelectedClaim = null;
+  window._pvMatches = [];
+  document.getElementById('pv-lookup').style.display = 'block';
+  document.getElementById('pv-pick').style.display = 'none';
+  document.getElementById('pv-form').style.display = 'none';
+  document.getElementById('pv-lookup-error').style.display = 'none';
+}
+
 async function submitPostVisit() {
-  const name = document.getElementById('pv-name').value.trim();
-  const email = document.getElementById('pv-email').value.trim();
-  const restaurant = document.getElementById('pv-restaurant').value;
+  if (!pvSelectedClaim) return;
+  const { spot, card, claimant } = pvSelectedClaim;
+
+  const name = claimant.name;
+  const email = claimant.email;
+  const rel = claimant.rel;
+  const employeeEmail = claimant.employeeEmail || '';
+  const isFriendFamily = rel === 'Friend / Family of employee';
+  const restaurant = spot.name;
+
   const visitDate = document.getElementById('pv-date').value;
   const amount = document.getElementById('pv-amount').value.trim();
-  const card = document.getElementById('pv-card').value;
   const last4 = document.getElementById('pv-last4').value.trim();
-  const rel = document.getElementById('pv-rel').value;
-  const employeeEmail = document.getElementById('pv-employee-email').value.trim();
-  const isFriendFamily = rel === 'Friend / Family of employee';
   const venmo = document.getElementById('pv-venmo').value.trim();
   const notes = document.getElementById('pv-notes').value.trim();
   const receiptFile = document.getElementById('pv-receipt').files[0];
   const ccpostFile = document.getElementById('pv-ccpost').files[0];
 
-  const pvIsEmployee = rel === 'Employee';
   document.getElementById('pv-error').style.display = 'none';
-  if (!name || !email || !rel || !restaurant || !visitDate || !amount || !card || !last4 || !receiptFile || !ccpostFile || (isFriendFamily && !employeeEmail)) {
+  if (!visitDate || !amount || !last4 || !receiptFile || !ccpostFile) {
     document.getElementById('pv-error').textContent = !receiptFile ? 'Please upload your receipt photo.' : !ccpostFile ? 'Please upload your CC posting screenshot.' : 'Please fill out all required fields.';
-    document.getElementById('pv-error').style.display = 'block';
-    return;
-  }
-  if (pvIsEmployee && !email.toLowerCase().endsWith('@seatedapp.io')) {
-    document.getElementById('pv-error').textContent = 'Employee email must be a @seatedapp.io address.';
-    document.getElementById('pv-error').style.display = 'block';
-    return;
-  }
-  if (isFriendFamily && !employeeEmail.toLowerCase().endsWith('@seatedapp.io')) {
-    document.getElementById('pv-error').textContent = "Employee's Seated email must be a @seatedapp.io address.";
     document.getElementById('pv-error').style.display = 'block';
     return;
   }
 
   // Upload files to ImgBB
-  const submitBtn = document.querySelector('#view-postvisit .btn-primary');
+  const submitBtn = document.querySelector('#pv-form .btn-primary');
   submitBtn.textContent = 'Uploading files…';
   submitBtn.disabled = true;
   const [receiptUrl, ccpostUrl] = await Promise.all([
@@ -1030,19 +1091,15 @@ async function submitPostVisit() {
   await savePvReports();
   renderPvReports();
 
-  // Send summary emails to Olivia and the submitter
+  // Send summary emails
   const dinerInfo = isFriendFamily
     ? `Friend / Family of employee\nTheir personal email: ${email}\nEmployee's Seated email: ${employeeEmail}`
     : `Employee\nSeated email: ${email}`;
   const summaryData = {
-    claimant_name: name,
-    claimant_email: email,
-    relation: rel,
-    diner_info: dinerInfo,
-    restaurant: restaurant,
-    visit_date: visitDate,
-    card_used: card,
-    last_four: last4,
+    claimant_name: name, claimant_email: email,
+    relation: rel, diner_info: dinerInfo,
+    restaurant, visit_date: visitDate,
+    card_used: card, last_four: last4,
     amount: `$${parseFloat(amount).toFixed(2)}`,
     venmo: venmo || 'Not provided',
     notes: notes || 'None',
@@ -1052,20 +1109,12 @@ async function submitPostVisit() {
   };
   try {
     emailjs.init('-t1K1x-L7JdF-y-cv');
-    // Email to Olivia
     emailjs.send('service_1mz5oak', 'template_us88agp', { ...summaryData, to_email: 'opassafiume@seatedapp.io' });
-    // Confirmation to submitter
     emailjs.send('service_1mz5oak', 'template_us88agp', { ...summaryData, to_email: email });
   } catch(e) {}
 
   document.getElementById('pv-success').style.display = 'block';
-  ['pv-name','pv-email','pv-amount','pv-notes','pv-last4','pv-venmo'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('pv-receipt').value = '';
-  document.getElementById('pv-ccpost').value = '';
-  ['pv-restaurant','pv-restaurant-search','pv-card','pv-date','pv-rel','pv-employee-email'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('pv-employee-email-wrap').style.display = 'none';
-  document.getElementById('pv-email-label').textContent = 'Your email';
-  document.getElementById('pv-email').placeholder = 'Your email';
+  pvSelectedClaim = null;
 }
 
 async function updatePvReceipt(idx, value) {
