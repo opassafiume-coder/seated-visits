@@ -793,21 +793,21 @@ async function submitClaim() {
       cards: selectedCard,
       claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     });
-    emailjs.send('service_1mz5oak', 'template_5nlix8m', {
+    const claimInstructions = {
       claimant_name: name,
       claimant_email: email,
       restaurant: s.name,
       address: s.addr,
       cards: selectedCard,
-    });
+      card_reminder: `Before heading to ${s.name}, make sure your ${selectedCard} card is already linked in the Seated app. If it's not linked yet, do that before you go.`,
+      deadline_note: `You have 48 hours from now to complete your visit. If the visit isn't done in time, your spot will be released back into the pool.`,
+    };
+    emailjs.send('service_1mz5oak', 'template_5nlix8m', claimInstructions);
     // Also notify the employee if friend/family
     if (isFriendFamily) {
       emailjs.send('service_1mz5oak', 'template_5nlix8m', {
-        claimant_name: name,
+        ...claimInstructions,
         claimant_email: employeeEmail,
-        restaurant: s.name,
-        address: s.addr,
-        cards: selectedCard,
       });
     }
   } catch(e) {}
