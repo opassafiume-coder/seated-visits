@@ -129,7 +129,7 @@
     <div id="map"></div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
       <select id="browse-market-filter" onchange="filterBrowseMarket()" style="font-family:'DM Sans',sans-serif;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;min-width:200px;">
-        <option value="">— Select a market —</option>
+        <option value="">— All cities —</option>
       </select>
       <select id="browse-card-filter" onchange="filterBrowseMarket()" style="font-family:'DM Sans',sans-serif;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;">
         <option value="">— All cards —</option>
@@ -139,7 +139,7 @@
       </select>
       <span id="browse-count" style="font-size:13px;color:var(--text-3);"></span>
     </div>
-    <div id="resto-list" style="display:none;"></div>
+    <div id="resto-list"></div>
     <div id="claim-form-container" style="display:none;">
       <div class="form-wrap">
         <div class="form-title" id="form-title"></div>
@@ -662,17 +662,12 @@ function renderBrowse() {
   const selectedCard = document.getElementById('browse-card-filter') ? document.getElementById('browse-card-filter').value : '';
   const restoList = document.getElementById('resto-list');
 
-  if (!selectedMarket) {
-    restoList.style.display = 'none';
-    restoList.innerHTML = '';
-    return;
-  }
-
-  const markets = [...new Set(RESTAURANTS.map(r => r.market))];
+  const markets = [...new Set(RESTAURANTS.map(r => r.market))].sort();
   let html = '';
   markets.forEach(m => {
-    if (m !== selectedMarket) return;
+    if (selectedMarket && m !== selectedMarket) return;
     const items = spots.filter(s => s.market === m && (!selectedCard || s.cards.includes(selectedCard)));
+    if (items.length === 0) return;
     html += `<div class="market-label">${m}</div>`;
     items.forEach(s => {
       const allTaken = s.cards.every(card => s.cardSlots[card]?.status !== 'Open');
