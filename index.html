@@ -306,7 +306,7 @@
 
     <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;margin-bottom:10px;">Spot assignments</div>
     <div class="filter-row">
-      <select id="filter-market" onchange="renderAdmin()"><option value="">All markets</option></select>
+      <select id="filter-market" onchange="renderAdmin()"><option value="">All cities</option></select>
       <select id="filter-status" onchange="renderAdmin()">
         <option value="">All statuses</option>
         <option>Open</option>
@@ -320,7 +320,7 @@
         <thead>
           <tr>
             <th>Restaurant</th>
-            <th>Market</th>
+            <th>City</th>
             <th>Cards</th>
             <th>Status</th>
             <th>Claimant</th>
@@ -891,7 +891,7 @@ function populateMarketFilter() {
   });
 
   const browsesel = document.getElementById('browse-market-filter');
-  browsesel.innerHTML = '<option value="">— Select a market —</option>';
+  browsesel.innerHTML = '<option value="">— All cities —</option>';
   markets.forEach(m => {
     const o = document.createElement('option');
     o.value = m; o.textContent = m;
