@@ -427,7 +427,7 @@ async function loadRestaurantsFromSheet() {
       const reimbMC   = parseFloat((obj['Reimb - MC']   || '0').replace(/[^0-9.]/g, '')) || 0;
       const reimbAmex = parseFloat((obj['Reimb - Amex'] || '0').replace(/[^0-9.]/g, '')) || 0;
       rows.push({
-        id: rows.length + 1,
+        id: parseInt(obj['ID']) || rows.length + 1,
         name: obj['Name'] || '',
         addr: obj['Address'] || '',
         market: obj['Market'] || '',
