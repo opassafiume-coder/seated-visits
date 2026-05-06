@@ -775,7 +775,10 @@ async function submitClaim() {
   const employeeEmail = document.getElementById('f-employee-email').value.trim();
   const isFriendFamily = rel === 'Friend / Family of employee';
   if (!name || !email || !rel) { alert('Please fill out all fields.'); return; }
+  const isEmployee = rel === 'Employee';
+  if (isEmployee && !email.toLowerCase().endsWith('@seatedapp.io')) { alert('Employee email must be a @seatedapp.io address.'); return; }
   if (isFriendFamily && !employeeEmail) { alert('Please enter the employee\'s Seated email.'); return; }
+  if (isFriendFamily && !employeeEmail.toLowerCase().endsWith('@seatedapp.io')) { alert('Employee\'s Seated email must be a @seatedapp.io address.'); return; }
   const s = spots.find(r => r.id === selectedId);
   const slot = s.cardSlots[selectedCard];
   if (slot.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
@@ -993,9 +996,20 @@ async function submitPostVisit() {
   const receiptFile = document.getElementById('pv-receipt').files[0];
   const ccpostFile = document.getElementById('pv-ccpost').files[0];
 
+  const pvIsEmployee = rel === 'Employee';
   document.getElementById('pv-error').style.display = 'none';
   if (!name || !email || !rel || !restaurant || !visitDate || !amount || !card || !last4 || !receiptFile || !ccpostFile || (isFriendFamily && !employeeEmail)) {
     document.getElementById('pv-error').textContent = !receiptFile ? 'Please upload your receipt photo.' : !ccpostFile ? 'Please upload your CC posting screenshot.' : 'Please fill out all required fields.';
+    document.getElementById('pv-error').style.display = 'block';
+    return;
+  }
+  if (pvIsEmployee && !email.toLowerCase().endsWith('@seatedapp.io')) {
+    document.getElementById('pv-error').textContent = 'Employee email must be a @seatedapp.io address.';
+    document.getElementById('pv-error').style.display = 'block';
+    return;
+  }
+  if (isFriendFamily && !employeeEmail.toLowerCase().endsWith('@seatedapp.io')) {
+    document.getElementById('pv-error').textContent = "Employee's Seated email must be a @seatedapp.io address.";
     document.getElementById('pv-error').style.display = 'block';
     return;
   }
