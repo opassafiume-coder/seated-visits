@@ -1130,6 +1130,18 @@ async function updatePvReceipt(idx, value) {
 async function updatePvStatus(idx, value) {
   pvReports[idx].adminStatus = value;
   await savePvReports();
+  // Voided: release the corresponding claim slot back to Open
+  if (value === 'Voided') {
+    const report = pvReports[idx];
+    const spot = spots.find(s => s.name === report.restaurant);
+    if (spot && report.card && spot.cardSlots[report.card]) {
+      spot.cardSlots[report.card].status = 'Open';
+      spot.cardSlots[report.card].claimant = null;
+      await saveSpots();
+      renderBrowse();
+      renderStats();
+    }
+  }
 }
 
 async function updatePvNote(idx, value) {
