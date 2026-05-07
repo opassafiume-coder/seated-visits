@@ -240,6 +240,7 @@
           <div>
             <div style="font-size:14px;font-weight:500;" id="pv-prefill-name"></div>
             <div style="font-size:12px;color:var(--text-2);margin-top:2px;" id="pv-prefill-addr"></div>
+            <div style="font-size:12px;color:var(--text-3);margin-top:4px;" id="pv-prefill-claimant"></div>
           </div>
           <div id="pv-prefill-card"></div>
         </div>
@@ -1027,6 +1028,7 @@ function selectPvClaim(i) {
   document.getElementById('pv-form').style.display = 'block';
   document.getElementById('pv-prefill-name').textContent = m.spot.name;
   document.getElementById('pv-prefill-addr').textContent = m.spot.addr;
+  document.getElementById('pv-prefill-claimant').textContent = m.claimant.name;
   document.getElementById('pv-prefill-card').innerHTML = cardBadge(m.card);
   document.getElementById('pv-success').style.display = 'none';
   document.getElementById('pv-error').style.display = 'none';
