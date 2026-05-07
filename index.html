@@ -629,6 +629,7 @@ function renderPvReports() {
         <option value="No receipt sent" ${r.adminStatus==='No receipt sent'?'selected':''}>No receipt sent</option>
         <option value="Trx submitted to dash" ${r.adminStatus==='Trx submitted to dash'?'selected':''}>Trx submitted to dash</option>
         <option value="Voided" ${r.adminStatus==='Voided'?'selected':''}>Voided</option>
+        <option value="Venmo'd — Closed" ${r.adminStatus==="Venmo'd — Closed"?'selected':''}>Venmo'd — Closed</option>
       </select>
     </td>
     <td><textarea onblur="updatePvNote(${idx}, this.value)" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:150px;min-height:50px;resize:vertical;">${r.adminNote||''}</textarea></td>
