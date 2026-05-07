@@ -626,8 +626,7 @@ function renderPvReports() {
     <td>
       <select onchange="updatePvStatus(${idx}, this.value)" style="font-size:12px;padding:4px 8px;width:auto;">
         <option value="New" ${(r.adminStatus||'New')==='New'?'selected':''}>New</option>
-        <option value="No receipt sent" ${r.adminStatus==='No receipt sent'?'selected':''}>No receipt sent</option>
-        <option value="Voided" ${r.adminStatus==='Voided'?'selected':''}>Voided</option>
+<option value="Voided" ${r.adminStatus==='Voided'?'selected':''}>Voided</option>
         <option value="Venmo'd" ${r.adminStatus==="Venmo'd"?'selected':''}>Venmo'd</option>
         <option value="Trx submitted in MID dash" ${r.adminStatus==='Trx submitted in MID dash'?'selected':''}>Trx submitted in MID dash</option>
       </select>
