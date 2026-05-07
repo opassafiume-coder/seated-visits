@@ -1069,6 +1069,11 @@ async function submitPostVisit() {
     document.getElementById('pv-error').style.display = 'block';
     return;
   }
+  if (!/^\d{4}$/.test(last4)) {
+    document.getElementById('pv-error').textContent = 'Last 4 digits must be exactly 4 numbers.';
+    document.getElementById('pv-error').style.display = 'block';
+    return;
+  }
 
   // Upload files to ImgBB
   const submitBtn = document.querySelector('#pv-form .btn-primary');
