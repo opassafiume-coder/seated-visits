@@ -431,7 +431,7 @@ async function loadRestaurantsFromSheet() {
         id: parseInt(obj['ID']) || rows.length + 1,
         name: obj['Name'] || '',
         addr: obj['Address'] || '',
-        market: obj['Market'] || '',
+        market: obj['City'] || obj['Market'] || '',
         cards: (obj['Cards Needed'] || '').split(',').map(c => c.trim()).filter(c => c.length > 0),
         priority: getPriority(gmv),
         gmv: Math.round(gmv),
