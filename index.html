@@ -132,7 +132,7 @@
 <div id="auth-gate">
   <div class="auth-card">
     <h1>Seated · Restaurant visits</h1>
-    <p>Sign in with your <strong>@seatedapp.io</strong> Google account to continue.</p>
+    <p>Sign in with your Google account to continue.</p>
     <div class="g-btn-wrap"><div id="g-signin-btn"></div></div>
     <div id="auth-error"></div>
   </div>
@@ -392,7 +392,6 @@
 //    NOT the publish-to-web key.
 const OAUTH_CLIENT_ID = '352874229289-tglifiln7raionffiran3a63p6verre0.apps.googleusercontent.com';
 const SHEET_ID        = '15qUHpgov0nHUSxt0XMO0w0kYfCUUht_rhthZ9gOY0ac';
-const REQUIRED_HD     = 'seatedapp.io';
 const SCOPES          = 'https://www.googleapis.com/auth/spreadsheets.readonly';
 
 // Populated after sign-in from a `Config` tab in the sheet (two columns: key, value).
@@ -418,7 +417,6 @@ function initAuth() {
   google.accounts.id.initialize({
     client_id: OAUTH_CLIENT_ID,
     callback: onCredentialResponse,
-    hd: REQUIRED_HD,
     auto_select: true,
     use_fedcm_for_prompt: true,
   });
@@ -430,7 +428,6 @@ function initAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: OAUTH_CLIENT_ID,
     scope: SCOPES,
-    hd: REQUIRED_HD,
     callback: () => {}, // overridden per-request
   });
 }
@@ -441,10 +438,6 @@ function onCredentialResponse(resp) {
     payload = JSON.parse(atob(resp.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
   } catch (e) { return showAuthError('Could not decode sign-in token.'); }
 
-  if (payload.hd !== REQUIRED_HD) {
-    google.accounts.id.disableAutoSelect();
-    return showAuthError(`This app is restricted to @${REQUIRED_HD} accounts. You signed in as ${payload.email}.`);
-  }
   userProfile = { name: payload.name, email: payload.email, picture: payload.picture };
 
   tokenClient.callback = async (tokenResp) => {
@@ -452,6 +445,18 @@ function onCredentialResponse(resp) {
       return showAuthError('Could not get Sheets access token: ' + (tokenResp.error || 'unknown'));
     }
     accessToken = tokenResp.access_token;
+    // Verify the user has access to the sheet by attempting a lightweight read.
+    try {
+      const testRes = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Config!A1?majorDimension=ROWS`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (testRes.status === 403 || testRes.status === 401) {
+        google.accounts.id.disableAutoSelect();
+        accessToken = null;
+        return showAuthError(`You don't have access to this app. Ask Olivia to share the sheet with ${userProfile.email}.`);
+      }
+    } catch (e) { /* network error — let afterAuth handle it */ }
     try { await afterAuth(); }
     catch (e) { showAuthError('Failed to load sheet data: ' + e.message); }
   };
