@@ -143,7 +143,7 @@
   <div class="tab-bar">
     <button class="tab active" onclick="switchTab('browse')">Sign up</button>
     <button class="tab" onclick="switchTab('postvisit')">Post-visit</button>
-    <button class="tab" onclick="switchTab('admin')">Admin</button>
+    <button class="tab" id="admin-tab" style="display:none;" onclick="switchTab('admin')">Admin</button>
   </div>
   <div id="user-chip" class="user-chip" style="display:none;">
     <img id="user-pic" alt="" />
@@ -458,12 +458,17 @@ function onCredentialResponse(resp) {
   tokenClient.requestAccessToken({ prompt: '', hint: payload.email });
 }
 
+const ADMIN_EMAILS = ['opassafiume@seatedapp.io','prao@seatedapp.io','hxiao@seatedapp.io'];
+
 async function afterAuth() {
   document.getElementById('user-pic').src = userProfile.picture || '';
   document.getElementById('user-name').textContent = userProfile.email;
   document.getElementById('user-chip').style.display = 'flex';
   document.getElementById('auth-gate').style.display = 'none';
   document.body.classList.remove('locked');
+  if (ADMIN_EMAILS.includes(userProfile.email.toLowerCase())) {
+    document.getElementById('admin-tab').style.display = 'flex';
+  }
   await loadConfigFromSheet();
   await loadSpots();
 }
