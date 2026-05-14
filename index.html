@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   #map { height: 320px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 1.5rem; z-index: 0; }
   .highlighted-card { border-color: #1A1814 !important; box-shadow: 0 0 0 2px #1A1814; }</style>
@@ -111,9 +112,31 @@
     .header { padding: 0 1rem; }
     .container { padding: 1.25rem 1rem; }
   }
+
+  /* Auth gate */
+  #auth-gate { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  #auth-gate .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; max-width: 380px; width: calc(100% - 2rem); text-align: center; }
+  #auth-gate h1 { font-size: 18px; font-weight: 500; margin-bottom: 6px; }
+  #auth-gate p { font-size: 13px; color: var(--text-2); margin-bottom: 1.5rem; }
+  #auth-gate .g-btn-wrap { display: flex; justify-content: center; min-height: 44px; }
+  #auth-error { display: none; background: var(--high-bg); color: var(--high-text); border-radius: 6px; padding: 10px 14px; font-size: 13px; margin-top: 1rem; text-align: left; }
+  .user-chip { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+  .user-chip img { width: 24px; height: 24px; border-radius: 50%; }
+  .user-chip button { font-size: 12px; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-strong); background: none; cursor: pointer; color: var(--text-2); }
+  .user-chip button:hover { background: var(--bg); color: var(--text); }
+  body.locked > div.header, body.locked > div.container { filter: blur(4px); pointer-events: none; user-select: none; }
 </style>
 </head>
-<body>
+<body class="locked">
+
+<div id="auth-gate">
+  <div class="auth-card">
+    <h1>Seated · Restaurant visits</h1>
+    <p>Sign in with your <strong>@seatedapp.io</strong> Google account to continue.</p>
+    <div class="g-btn-wrap"><div id="g-signin-btn"></div></div>
+    <div id="auth-error"></div>
+  </div>
+</div>
 
 <div class="header">
   <div class="logo">Seated <span>/ restaurant visits</span></div>
@@ -121,6 +144,11 @@
     <button class="tab active" onclick="switchTab('browse')">Sign up</button>
     <button class="tab" onclick="switchTab('postvisit')">Post-visit</button>
     <button class="tab" onclick="switchTab('admin')">Admin</button>
+  </div>
+  <div id="user-chip" class="user-chip" style="display:none;">
+    <img id="user-pic" alt="" />
+    <span id="user-name"></span>
+    <button onclick="signOut()">Sign out</button>
   </div>
 </div>
 
@@ -356,8 +384,133 @@
 </div>
 
 <script>
-const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSpiiG9jookK2lZWo9zmU_o7F0xh8ya2dc89mRgDy6sCAZANPiCEH8yHHMLEik9lMVmCm9IK-ij5f8V/pub?output=csv';
-const IMGBB_KEY = '73aba47d2b53a98cb78120f05ac08790';
+// ── OAuth + sheet config ──────────────────────────────────────
+// Fill these two in. The Client ID is not a secret — it's safe to commit.
+// 1. Create an OAuth 2.0 Client ID (Web app) at https://console.cloud.google.com/apis/credentials
+//    and add this page's origin (e.g. https://opassafiume-coder.github.io) to authorized JS origins.
+// 2. SHEET_ID is the ID from your sheet's edit URL (the long string between /d/ and /edit),
+//    NOT the publish-to-web key.
+const OAUTH_CLIENT_ID = '214600602200-kkl4hf9omoha79b3csn9i3jds85gghp2.apps.googleusercontent.com';
+const SHEET_ID        = '1c0YaPxfiH0QeOnBHbLRSl_j11S1cymtbtaxJIU2od_A';
+const REQUIRED_HD     = 'seatedapp.io';
+const SCOPES          = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+
+// Populated after sign-in from a `Config` tab in the sheet (two columns: key, value).
+// Required keys: IMGBB_KEY, JSONBIN_ID, JSONBIN_KEY, EMAILJS_PUBLIC, EMAILJS_SERVICE,
+//                EMAILJS_CLAIM_TEMPLATE, EMAILJS_REPORT_TEMPLATE, ADMIN_EMAIL.
+// Optional: RESTAURANTS_RANGE (default 'Restaurants!A:Z').
+let CONFIG = {};
+
+let tokenClient = null;
+let accessToken = null;
+let userProfile = null;
+
+window.addEventListener('load', () => {
+  // GIS script is async/defer — poll briefly until google.accounts is ready.
+  const tryInit = () => {
+    if (window.google && google.accounts && google.accounts.id) { initAuth(); }
+    else { setTimeout(tryInit, 50); }
+  };
+  tryInit();
+});
+
+function initAuth() {
+  google.accounts.id.initialize({
+    client_id: OAUTH_CLIENT_ID,
+    callback: onCredentialResponse,
+    hd: REQUIRED_HD,
+    auto_select: true,
+    use_fedcm_for_prompt: true,
+  });
+  google.accounts.id.renderButton(document.getElementById('g-signin-btn'), {
+    theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular'
+  });
+  google.accounts.id.prompt();
+
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: OAUTH_CLIENT_ID,
+    scope: SCOPES,
+    hd: REQUIRED_HD,
+    callback: () => {}, // overridden per-request
+  });
+}
+
+function onCredentialResponse(resp) {
+  let payload;
+  try {
+    payload = JSON.parse(atob(resp.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  } catch (e) { return showAuthError('Could not decode sign-in token.'); }
+
+  if (payload.hd !== REQUIRED_HD) {
+    google.accounts.id.disableAutoSelect();
+    return showAuthError(`This app is restricted to @${REQUIRED_HD} accounts. You signed in as ${payload.email}.`);
+  }
+  userProfile = { name: payload.name, email: payload.email, picture: payload.picture };
+
+  tokenClient.callback = async (tokenResp) => {
+    if (tokenResp.error || !tokenResp.access_token) {
+      return showAuthError('Could not get Sheets access token: ' + (tokenResp.error || 'unknown'));
+    }
+    accessToken = tokenResp.access_token;
+    try { await afterAuth(); }
+    catch (e) { showAuthError('Failed to load sheet data: ' + e.message); }
+  };
+  tokenClient.requestAccessToken({ prompt: '', hint: payload.email });
+}
+
+async function afterAuth() {
+  document.getElementById('user-pic').src = userProfile.picture || '';
+  document.getElementById('user-name').textContent = userProfile.email;
+  document.getElementById('user-chip').style.display = 'flex';
+  document.getElementById('auth-gate').style.display = 'none';
+  document.body.classList.remove('locked');
+  await loadConfigFromSheet();
+  await loadSpots();
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function signOut() {
+  if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
+  google.accounts.id.disableAutoSelect();
+  accessToken = null;
+  userProfile = null;
+  location.reload();
+}
+
+async function fetchSheetValues(range) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?majorDimension=ROWS`;
+  let res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (res.status === 401) {
+    accessToken = await refreshAccessToken();
+    res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  }
+  if (!res.ok) throw new Error(`Sheets API ${res.status} for range ${range}`);
+  return (await res.json()).values || [];
+}
+
+function refreshAccessToken() {
+  return new Promise((resolve, reject) => {
+    tokenClient.callback = (tokenResp) => {
+      if (tokenResp.access_token) resolve(tokenResp.access_token);
+      else reject(new Error('Token refresh failed'));
+    };
+    tokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+async function loadConfigFromSheet() {
+  const rows = await fetchSheetValues('Config!A2:B');
+  CONFIG = {};
+  rows.forEach(([k, v]) => { if (k) CONFIG[String(k).trim()] = (v == null ? '' : String(v)).trim(); });
+  const required = ['IMGBB_KEY','JSONBIN_ID','JSONBIN_KEY','EMAILJS_PUBLIC','EMAILJS_SERVICE','EMAILJS_CLAIM_TEMPLATE','EMAILJS_REPORT_TEMPLATE','ADMIN_EMAIL'];
+  const missing = required.filter(k => !CONFIG[k]);
+  if (missing.length) throw new Error('Config tab missing keys: ' + missing.join(', '));
+}
 
 async function uploadToImgBB(file) {
   if (!file) return null;
@@ -366,7 +519,7 @@ async function uploadToImgBB(file) {
     reader.onload = async (e) => {
       const base64 = e.target.result.split(',')[1];
       const form = new FormData();
-      form.append('key', IMGBB_KEY);
+      form.append('key', CONFIG.IMGBB_KEY);
       form.append('image', base64);
       form.append('name', file.name);
       try {
@@ -397,29 +550,16 @@ function getPriority(gmv) {
 
 async function loadRestaurantsFromSheet() {
   try {
-    const cacheBustUrl = SHEET_CSV_URL + '&t=' + Date.now();
-    const proxies = [
-      'https://corsproxy.io/?' + encodeURIComponent(cacheBustUrl),
-      'https://api.allorigins.win/raw?url=' + encodeURIComponent(cacheBustUrl),
-      cacheBustUrl
-    ];
-    let res = null;
-    for (const url of proxies) {
-      try {
-        res = await fetch(url);
-        if (res.ok) break;
-      } catch(e) { continue; }
-    }
-    if (!res || !res.ok) throw new Error('All proxies failed');
-    const text = await res.text();
-    const lines = text.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    const range = CONFIG.RESTAURANTS_RANGE || 'Restaurants!A:Z';
+    const values = await fetchSheetValues(range);
+    if (!values.length) { RESTAURANTS = []; return; }
+    const headers = values[0].map(h => String(h || '').trim());
     const rows = [];
-    for (let i = 1; i < lines.length; i++) {
-      const vals = lines[i].match(/(".*?"|[^,]+)(?=,|$)/g) || [];
-      const clean = vals.map(v => v.trim().replace(/^"|"$/g, ''));
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i] || [];
       const obj = {};
-      headers.forEach((h, idx) => obj[h] = clean[idx] || '');
+      headers.forEach((h, idx) => obj[h] = row[idx] != null ? String(row[idx]) : '');
+      if (!obj['Name']) continue;
       const gmv = parseFloat((obj['GMV / mo'] || '0').replace(/[^0-9.]/g, '')) || 0;
       const revVisa = parseFloat((obj['Rev - Visa'] || '0').replace(/[^0-9.]/g, '')) || 0;
       const revMC   = parseFloat((obj['Rev - MC']   || '0').replace(/[^0-9.]/g, '')) || 0;
@@ -448,18 +588,17 @@ async function loadRestaurantsFromSheet() {
   }
 }
 
-const JSONBIN_ID = '69e04f30aaba8821970422b6';
-const JSONBIN_KEY = '$2a$10$542A7cjv/sltRH4nxd8PZ.627YzR2AfWLM9s9sTQWyG/kp0fIvcs6';
-const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}`;
 let spots = [];
 let pvReports = [];
 let selectedId = null;
 let selectedCard = null;
 
+function jsonbinUrl() { return `https://api.jsonbin.io/v3/b/${CONFIG.JSONBIN_ID}`; }
+
 async function loadFromBin() {
   try {
-    const res = await fetch(JSONBIN_URL + '/latest', {
-      headers: { 'X-Master-Key': JSONBIN_KEY }
+    const res = await fetch(jsonbinUrl() + '/latest', {
+      headers: { 'X-Master-Key': CONFIG.JSONBIN_KEY }
     });
     const data = await res.json();
     return data.record;
@@ -469,9 +608,9 @@ async function loadFromBin() {
 async function saveToBin() {
   const spotsData = spots.map(s => ({ id: s.id, cardSlots: s.cardSlots }));
   try {
-    await fetch(JSONBIN_URL, {
+    await fetch(jsonbinUrl(), {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': CONFIG.JSONBIN_KEY },
       body: JSON.stringify({ spots: spotsData, pvReports })
     });
   } catch(e) {}
@@ -779,9 +918,9 @@ async function submitClaim() {
   slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt: new Date().toISOString() };
   await saveSpots();
   try {
-    emailjs.init('-t1K1x-L7JdF-y-cv');
-    emailjs.send('service_1mz5oak', 'template_5nlix8m', {
-      to_email: 'opassafiume@seatedapp.io',
+    emailjs.init(CONFIG.EMAILJS_PUBLIC);
+    emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+      to_email: CONFIG.ADMIN_EMAIL,
       restaurant: s.name,
       address: s.addr,
       market: s.market,
@@ -801,10 +940,10 @@ async function submitClaim() {
       card_reminder: `Before heading to ${s.name}, make sure your ${selectedCard} card is already linked in the Seated app. If it's not linked yet, do that before you go.`,
       deadline_note: `You have 48 hours from now to complete your visit. If the visit isn't done in time, your spot will be released back into the pool.`,
     };
-    emailjs.send('service_1mz5oak', 'template_5nlix8m', claimInstructions);
+    emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, claimInstructions);
     // Also notify the employee if friend/family
     if (isFriendFamily) {
-      emailjs.send('service_1mz5oak', 'template_5nlix8m', {
+      emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
         ...claimInstructions,
         claimant_email: employeeEmail,
       });
@@ -1117,9 +1256,9 @@ async function submitPostVisit() {
     claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   };
   try {
-    emailjs.init('-t1K1x-L7JdF-y-cv');
-    emailjs.send('service_1mz5oak', 'template_us88agp', { ...summaryData, to_email: 'opassafiume@seatedapp.io' });
-    emailjs.send('service_1mz5oak', 'template_us88agp', { ...summaryData, to_email: email });
+    emailjs.init(CONFIG.EMAILJS_PUBLIC);
+    emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_REPORT_TEMPLATE, { ...summaryData, to_email: CONFIG.ADMIN_EMAIL });
+    emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_REPORT_TEMPLATE, { ...summaryData, to_email: email });
   } catch(e) {}
 
   document.getElementById('pv-success').style.display = 'block';
@@ -1160,7 +1299,7 @@ function switchTab(tab) {
   document.getElementById(`view-${tab}`).classList.add('active');
 }
 
-loadSpots();
+// loadSpots() is triggered by afterAuth() once sign-in completes.
 </script>
 </body>
 </html>
