@@ -577,9 +577,10 @@ async function loadRestaurantsFromSheet() {
       const revVisa = parseFloat((obj['Rev - Visa'] || '0').replace(/[^0-9.]/g, '')) || 0;
       const revMC   = parseFloat((obj['Rev - MC']   || '0').replace(/[^0-9.]/g, '')) || 0;
       const revAmex = parseFloat((obj['Rev - Amex'] || '0').replace(/[^0-9.]/g, '')) || 0;
-      const reimbVisa = parseFloat((obj['Reimb - Visa'] || '0').replace(/[^0-9.]/g, '')) || 0;
-      const reimbMC   = parseFloat((obj['Reimb - MC']   || '0').replace(/[^0-9.]/g, '')) || 0;
-      const reimbAmex = parseFloat((obj['Reimb - Amex'] || '0').replace(/[^0-9.]/g, '')) || 0;
+      const REIMB_CAP = 100;
+      const reimbVisa = Math.min(parseFloat((obj['Reimb - Visa'] || '0').replace(/[^0-9.]/g, '')) || 0, REIMB_CAP);
+      const reimbMC   = Math.min(parseFloat((obj['Reimb - MC']   || '0').replace(/[^0-9.]/g, '')) || 0, REIMB_CAP);
+      const reimbAmex = Math.min(parseFloat((obj['Reimb - Amex'] || '0').replace(/[^0-9.]/g, '')) || 0, REIMB_CAP);
       rows.push({
         id: parseInt(obj['ID']) || rows.length + 1,
         name: obj['Name'] || '',
