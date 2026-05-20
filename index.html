@@ -740,6 +740,41 @@ async function loadSpots() {
   const record = await loadFromBin();
   const savedSpots = record.spots || [];
   pvReports = record.pvReports || [];
+
+  // Check for claims on restaurants that are no longer in the sheet — notify admin
+  const removedClaims = [];
+  savedSpots.forEach(saved => {
+    const stillExists = RESTAURANTS.find(r => r.id === saved.id);
+    if (!stillExists && saved.cardSlots) {
+      Object.entries(saved.cardSlots).forEach(([card, slot]) => {
+        if (slot.status !== 'Open' && slot.claimant) {
+          removedClaims.push({
+            card,
+            claimant: slot.claimant,
+            status: slot.status,
+            restaurantId: saved.id
+          });
+        }
+      });
+    }
+  });
+  if (removedClaims.length > 0) {
+    const details = removedClaims.map(c =>
+      `${c.claimant.name} (${c.claimant.email}) — ${c.card} — was ${c.status} (Restaurant ID: ${c.restaurantId})`
+    ).join('\n');
+    try {
+      emailjs.init(CONFIG.EMAILJS_PUBLIC);
+      await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+        to_email: CONFIG.ADMIN_EMAIL,
+        claimant_name: '⚠️ REMOVED CLAIMS ALERT',
+        claimant_email: CONFIG.ADMIN_EMAIL,
+        restaurant: `${removedClaims.length} claim(s) removed — restaurants no longer in sheet`,
+        address: 'These claimants need to be notified manually:',
+        cards: details,
+      }, CONFIG.EMAILJS_PUBLIC);
+    } catch(e) { console.error('Failed to send removed claims alert:', e); }
+  }
+
   spots = RESTAURANTS.map(r => {
     const s = savedSpots.find(x => x.id === r.id);
     const cardSlots = {};
