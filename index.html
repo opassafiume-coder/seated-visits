@@ -447,20 +447,23 @@ function onCredentialResponse(resp) {
       return showAuthError('Could not get Sheets access token: ' + (tokenResp.error || 'unknown'));
     }
     accessToken = tokenResp.access_token;
-    // Verify the user has been granted access to the sheet.
-    // Using spreadsheet metadata (not a range) gives a clean 403 for any account without access.
-    try {
-      const testRes = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=spreadsheetId`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      if (!testRes.ok) {
-        google.accounts.id.disableAutoSelect();
-        accessToken = null;
-        return showAuthError(`You don't have access to this app. Ask Olivia to share the sheet with ${userProfile.email}.`);
+    // @seatedapp.io employees are always allowed in.
+    // Everyone else must have view access to the sheet.
+    const isSeatedEmployee = userProfile.email.toLowerCase().endsWith('@seatedapp.io');
+    if (!isSeatedEmployee) {
+      try {
+        const testRes = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=spreadsheetId`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (!testRes.ok) {
+          google.accounts.id.disableAutoSelect();
+          accessToken = null;
+          return showAuthError(`You don't have access to this app. Ask Olivia to share the sheet with ${userProfile.email}.`);
+        }
+      } catch (e) {
+        return showAuthError('Could not verify sheet access. Check your connection and try again.');
       }
-    } catch (e) {
-      return showAuthError('Could not verify sheet access. Check your connection and try again.');
     }
     try { await afterAuth(); }
     catch (e) { showAuthError('Failed to load sheet data: ' + e.message); }
