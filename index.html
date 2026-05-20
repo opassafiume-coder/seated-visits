@@ -1012,6 +1012,7 @@ function renderAdmin() {
       <td>${statusBadge(slot.status)}</td>
       <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div>${c.employeeEmail ? `<div style="color:var(--text-3);margin-top:1px;">Employee: ${c.employeeEmail}</div>` : ''}<div style="color:var(--text-3);margin-top:1px;">${c.rel}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
       <td>
+        ${slot.status === 'Open' ? `<button class="action-btn" onclick="manualClaim(${s.id},'${card}')">Manual claim</button>` : ''}
         ${slot.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Confirmed')">Confirm</button>` : ''}
         ${['Claimed','Confirmed'].includes(slot.status) ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Closed')">Close</button>` : ''}
         ${slot.status !== 'Open' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Open')">Reopen</button>` : ''}
@@ -1019,6 +1020,23 @@ function renderAdmin() {
     </tr>`;
   });
   document.getElementById('admin-tbody').innerHTML = html;
+}
+
+async function manualClaim(id, card) {
+  const name  = prompt('Claimant full name:');
+  if (!name) return;
+  const email = prompt('Claimant email:');
+  if (!email) return;
+  const s = spots.find(r => r.id === id);
+  s.cardSlots[card] = {
+    status: 'Claimed',
+    claimant: { name, email, rel: 'Employee', employeeEmail: null, claimedAt: new Date().toISOString() }
+  };
+  await saveToBin();
+  renderBrowse();
+  renderMap();
+  renderAdmin();
+  updateStats();
 }
 
 async function setStatus(id, card, status) {
