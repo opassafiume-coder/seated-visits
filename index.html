@@ -349,6 +349,7 @@
             <th>Cards</th>
             <th>Status</th>
             <th>Claimant</th>
+            <th>Reimb</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -1026,7 +1027,7 @@ function renderAdmin() {
     });
   });
   if (!rows.length) {
-    document.getElementById('admin-tbody').innerHTML = `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">No results found</td></tr>`;
+    document.getElementById('admin-tbody').innerHTML = `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-3);">No results found</td></tr>`;
     return;
   }
   let html = '';
@@ -1039,6 +1040,7 @@ function renderAdmin() {
       <td>${cardBadge(card)}</td>
       <td>${statusBadge(slot.status)}</td>
       <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div>${c.employeeEmail ? `<div style="color:var(--text-3);margin-top:1px;">Employee: ${c.employeeEmail}</div>` : ''}<div style="color:var(--text-3);margin-top:1px;">${c.rel}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
+      <td style="font-size:13px;font-weight:600;color:#1A5C36;">${s.reimb && s.reimb[card] ? `$${s.reimb[card]}` : '—'}</td>
       <td>
         ${slot.status === 'Open' ? `<button class="action-btn" onclick="manualClaim(${s.id},'${card}')">Manual claim</button>` : ''}
         ${slot.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Confirmed')">Confirm</button>` : ''}
