@@ -619,6 +619,29 @@ async function loadFromBin() {
   } catch(e) { return { spots: [], pvReports: [] }; }
 }
 
+async function notifySaveFailure(reason, context) {
+  try {
+    const claimedSpots = spots.filter(s =>
+      Object.values(s.cardSlots).some(slot => slot.status !== 'Open')
+    ).map(s => {
+      const active = Object.entries(s.cardSlots)
+        .filter(([, slot]) => slot.status !== 'Open')
+        .map(([card, slot]) => `${s.name} (${card}) — ${slot.status}${slot.claimant ? ' by ' + slot.claimant.name + ' <' + slot.claimant.email + '>' : ''}`)
+        .join('\n');
+      return active;
+    }).filter(Boolean).join('\n');
+
+    await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+      to_email: CONFIG.ADMIN_EMAIL,
+      claimant_name: 'SYSTEM ALERT',
+      claimant_email: CONFIG.ADMIN_EMAIL,
+      restaurant: '⚠️ JSONBin Save Failure',
+      address: reason,
+      cards: claimedSpots || 'No claim details available',
+    }, CONFIG.EMAILJS_PUBLIC);
+  } catch(e) { console.error('Failed to send save failure notification:', e); }
+}
+
 async function saveToBin() {
   // Only save spots with at least one non-Open slot — keeps payload small and under JSONBin limits.
   const spotsData = spots
@@ -634,10 +657,12 @@ async function saveToBin() {
       const err = await res.text();
       console.error('JSONBin save failed:', res.status, err);
       alert(`⚠️ Warning: claim was submitted but failed to save (${res.status}). Please contact your admin immediately so the claim can be recorded manually.`);
+      await notifySaveFailure(`HTTP ${res.status}: ${err}`);
     }
   } catch(e) {
     console.error('JSONBin save error:', e);
     alert('⚠️ Warning: claim was submitted but failed to save due to a network error. Please contact your admin immediately so the claim can be recorded manually.');
+    await notifySaveFailure(`Network error: ${e.message}`);
   }
 }
 
