@@ -368,6 +368,7 @@
             <th>Card</th>
             <th>Last 4</th>
             <th>Amount</th>
+            <th>Reimb</th>
             <th>Venmo</th>
             <th>Their notes</th>
             <th>Files</th>
@@ -377,7 +378,7 @@
           </tr>
         </thead>
         <tbody id="pv-admin-tbody">
-          <tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
+          <tr><td colspan="13" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -795,11 +796,16 @@ async function savePvReports() {
 function renderPvReports() {
   const tbody = document.getElementById('pv-admin-tbody');
   if (!pvReports.length) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>`;
     return;
   }
   tbody.innerHTML = pvReports.slice().reverse().map((r, i) => {
     const idx = pvReports.length - 1 - i;
+    const matchedSpot = spots.find(s => s.name === r.restaurant);
+    const matchedSlot = matchedSpot && matchedSpot.cardSlots[r.card];
+    const lockedReimb = (matchedSlot && matchedSlot.claimant && matchedSlot.claimant.reimb != null)
+      ? matchedSlot.claimant.reimb
+      : (r.reimb != null ? r.reimb : (matchedSpot && matchedSpot.reimb && matchedSpot.reimb[r.card] ? matchedSpot.reimb[r.card] : null));
     return `<tr>
     <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${r.visitDate || r.submittedAt}</td>
     <td><div style="font-weight:500;font-size:13px;">${r.name}</div><div style="font-size:11px;color:var(--text-3);">${r.email}</div></td>
@@ -807,6 +813,7 @@ function renderPvReports() {
     <td>${cardBadge(r.card)}</td>
     <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${r.last4 || '—'}</td>
     <td style="font-size:13px;font-family:'DM Mono',monospace;">$${parseFloat(r.amount).toFixed(2)}</td>
+    <td style="font-size:13px;font-weight:600;color:#1A5C36;">${lockedReimb != null ? `$${lockedReimb}` : '—'}</td>
     <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${r.venmo || '—'}</td>
     <td style="font-size:12px;color:var(--text-2);">${r.notes || '—'}</td>
     <td style="font-size:12px;">
@@ -966,7 +973,8 @@ async function submitClaim() {
   const slot = s.cardSlots[selectedCard];
   if (slot.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
   slot.status = 'Claimed';
-  slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt: new Date().toISOString() };
+  const lockedReimb = s.reimb && s.reimb[selectedCard] ? s.reimb[selectedCard] : 0;
+  slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt: new Date().toISOString(), reimb: lockedReimb };
   await saveSpots();
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
@@ -1040,7 +1048,7 @@ function renderAdmin() {
       <td>${cardBadge(card)}</td>
       <td>${statusBadge(slot.status)}</td>
       <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div>${c.employeeEmail ? `<div style="color:var(--text-3);margin-top:1px;">Employee: ${c.employeeEmail}</div>` : ''}<div style="color:var(--text-3);margin-top:1px;">${c.rel}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
-      <td style="font-size:13px;font-weight:600;color:#1A5C36;">${s.reimb && s.reimb[card] ? `$${s.reimb[card]}` : '—'}</td>
+      <td style="font-size:13px;font-weight:600;color:#1A5C36;">${c && c.reimb ? `$${c.reimb}` : (s.reimb && s.reimb[card] ? `$${s.reimb[card]}` : '—')}</td>
       <td>
         ${slot.status === 'Open' ? `<button class="action-btn" onclick="manualClaim(${s.id},'${card}')">Manual claim</button>` : ''}
         ${slot.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Confirmed')">Confirm</button>` : ''}
