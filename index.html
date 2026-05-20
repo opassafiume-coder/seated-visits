@@ -620,7 +620,10 @@ async function loadFromBin() {
 }
 
 async function saveToBin() {
-  const spotsData = spots.map(s => ({ id: s.id, cardSlots: s.cardSlots }));
+  // Only save spots with at least one non-Open slot — keeps payload small and under JSONBin limits.
+  const spotsData = spots
+    .filter(s => Object.values(s.cardSlots).some(slot => slot.status !== 'Open'))
+    .map(s => ({ id: s.id, cardSlots: s.cardSlots }));
   try {
     const res = await fetch(jsonbinUrl(), {
       method: 'PUT',
