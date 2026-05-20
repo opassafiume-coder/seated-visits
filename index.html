@@ -622,12 +622,20 @@ async function loadFromBin() {
 async function saveToBin() {
   const spotsData = spots.map(s => ({ id: s.id, cardSlots: s.cardSlots }));
   try {
-    await fetch(jsonbinUrl(), {
+    const res = await fetch(jsonbinUrl(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': CONFIG.JSONBIN_KEY },
       body: JSON.stringify({ spots: spotsData, pvReports })
     });
-  } catch(e) {}
+    if (!res.ok) {
+      const err = await res.text();
+      console.error('JSONBin save failed:', res.status, err);
+      alert(`⚠️ Warning: claim was submitted but failed to save (${res.status}). Please contact your admin immediately so the claim can be recorded manually.`);
+    }
+  } catch(e) {
+    console.error('JSONBin save error:', e);
+    alert('⚠️ Warning: claim was submitted but failed to save due to a network error. Please contact your admin immediately so the claim can be recorded manually.');
+  }
 }
 
 let map = null;
