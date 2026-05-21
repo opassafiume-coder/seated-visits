@@ -796,6 +796,15 @@ async function loadSpots() {
         ? s.cardSlots[card]
         : { status: 'Open', claimant: null };
     });
+    // Preserve any active claims on cards that were dropped from the sheet
+    // so they aren't silently erased on the next save
+    if (s && s.cardSlots) {
+      Object.entries(s.cardSlots).forEach(([card, slot]) => {
+        if (!cardSlots[card] && slot.status !== 'Open' && slot.claimant) {
+          cardSlots[card] = slot;
+        }
+      });
+    }
     return { ...r, cardSlots };
   });
 
