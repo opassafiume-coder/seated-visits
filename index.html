@@ -420,7 +420,17 @@
       </div>
 
       <!-- Post-Visit Summaries Section -->
-      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;margin-bottom:10px;">Post-Visit Summaries — all time</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+        <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;">Post-Visit Summaries — all time</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input id="pv-log-name-filter" type="text" placeholder="Filter by name…" oninput="renderClaimLog()"
+            style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:180px;">
+          <button id="pv-log-sort-btn" onclick="togglePvLogSort()"
+            style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);cursor:pointer;white-space:nowrap;">
+            Newest first ↓
+          </button>
+        </div>
+      </div>
       <div style="overflow-x:auto;">
         <table class="admin-table">
           <thead>
@@ -925,11 +935,19 @@ async function savePvReports() {
 }
 
 let claimLogSortAsc = false; // default: newest first
+let pvLogSortAsc = false;    // default: newest first
 
 function toggleClaimLogSort() {
   claimLogSortAsc = !claimLogSortAsc;
   const btn = document.getElementById('log-sort-btn');
   if (btn) btn.textContent = claimLogSortAsc ? 'Oldest first ↑' : 'Newest first ↓';
+  renderClaimLog();
+}
+
+function togglePvLogSort() {
+  pvLogSortAsc = !pvLogSortAsc;
+  const btn = document.getElementById('pv-log-sort-btn');
+  if (btn) btn.textContent = pvLogSortAsc ? 'Oldest first ↑' : 'Newest first ↓';
   renderClaimLog();
 }
 
@@ -961,11 +979,14 @@ function renderClaimLog() {
   // ── Post-visit summaries table ──
   const pvTbody = document.getElementById('pv-log-tbody');
   if (pvTbody) {
-    if (!pvReports.length) {
-      pvTbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>`;
+    const pvNameFilter = (document.getElementById('pv-log-name-filter')?.value || '').toLowerCase().trim();
+    let pvFiltered = pvReports.filter(r => !pvNameFilter || (r.name || '').toLowerCase().includes(pvNameFilter));
+    const pvSorted = pvLogSortAsc ? pvFiltered.slice() : pvFiltered.slice().reverse();
+    if (!pvSorted.length) {
+      pvTbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">${pvNameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
     } else {
       const statusColor = { Approved: '#1A5C36', Voided: '#9B1C1C', Pending: '#92400e' };
-      pvTbody.innerHTML = pvReports.slice().reverse().map(r => {
+      pvTbody.innerHTML = pvSorted.map(r => {
         const statusStyle = `font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:${r.adminStatus === 'Approved' ? '#DCFCE7' : r.adminStatus === 'Voided' ? '#FEE2E2' : '#FEF3C7'};color:${statusColor[r.adminStatus] || '#374151'};`;
         return `<tr>
           <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;white-space:nowrap;">${r.submittedAt || '—'}</td>
