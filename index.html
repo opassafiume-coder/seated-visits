@@ -744,38 +744,46 @@ async function loadSpots() {
   const savedSpots = record.spots || [];
   pvReports = record.pvReports || [];
 
-  // Check for claims on restaurants that are no longer in the sheet — notify admin
-  const removedClaims = [];
+  // Check for claims affected by sheet changes — notify admin
+  const removedClaims = [];    // restaurant removed entirely
+  const droppedCardClaims = []; // restaurant still exists but card no longer needed
+
   savedSpots.forEach(saved => {
-    const stillExists = RESTAURANTS.find(r => r.id === saved.id);
-    if (!stillExists && saved.cardSlots) {
+    const current = RESTAURANTS.find(r => r.id === saved.id);
+    if (!current && saved.cardSlots) {
+      // Restaurant removed entirely
       Object.entries(saved.cardSlots).forEach(([card, slot]) => {
         if (slot.status !== 'Open' && slot.claimant) {
-          removedClaims.push({
-            card,
-            claimant: slot.claimant,
-            status: slot.status,
-            restaurantId: saved.id
-          });
+          removedClaims.push({ restaurantId: saved.id, card, claimant: slot.claimant, status: slot.status });
+        }
+      });
+    } else if (current && saved.cardSlots) {
+      // Restaurant still exists — check if any claimed cards were dropped
+      Object.entries(saved.cardSlots).forEach(([card, slot]) => {
+        if (slot.status !== 'Open' && slot.claimant && !current.cards.includes(card)) {
+          droppedCardClaims.push({ restaurantName: current.name, restaurantId: saved.id, card, claimant: slot.claimant, status: slot.status });
         }
       });
     }
   });
-  if (removedClaims.length > 0) {
-    const details = removedClaims.map(c =>
-      `${c.claimant.name} (${c.claimant.email}) — ${c.card} — was ${c.status} (Restaurant ID: ${c.restaurantId})`
-    ).join('\n');
+
+  const allAffected = [...removedClaims, ...droppedCardClaims];
+  if (allAffected.length > 0) {
+    const details = [
+      ...removedClaims.map(c => `RESTAURANT REMOVED — ID ${c.restaurantId} | ${c.card} | ${c.claimant.name} (${c.claimant.email}) | was ${c.status}`),
+      ...droppedCardClaims.map(c => `CARD DROPPED — ${c.restaurantName} | ${c.card} no longer needed | ${c.claimant.name} (${c.claimant.email}) | was ${c.status}`)
+    ].join('\n');
     try {
       emailjs.init(CONFIG.EMAILJS_PUBLIC);
       await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
         to_email: CONFIG.ADMIN_EMAIL,
-        claimant_name: '⚠️ REMOVED CLAIMS ALERT',
+        claimant_name: '⚠️ SHEET UPDATE — CLAIMS AFFECTED',
         claimant_email: CONFIG.ADMIN_EMAIL,
-        restaurant: `${removedClaims.length} claim(s) removed — restaurants no longer in sheet`,
-        address: 'These claimants need to be notified manually:',
+        restaurant: `${allAffected.length} claim(s) affected by sheet update`,
+        address: 'These claimants need to be notified:',
         cards: details,
       }, CONFIG.EMAILJS_PUBLIC);
-    } catch(e) { console.error('Failed to send removed claims alert:', e); }
+    } catch(e) { console.error('Failed to send affected claims alert:', e); }
   }
 
   spots = RESTAURANTS.map(r => {
