@@ -330,16 +330,24 @@
       <div class="stat-card"><div class="stat-label">Confirmed</div><div class="stat-val" id="stat-confirmed">0</div></div>
     </div>
 
-    <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;margin-bottom:10px;">Spot assignments</div>
-    <div class="filter-row">
-      <select id="filter-market" onchange="renderAdmin()"><option value="">All cities</option></select>
-      <select id="filter-status" onchange="renderAdmin()">
-        <option value="">All statuses</option>
-        <option>Open</option>
-        <option>Claimed</option>
-        <option>Confirmed</option>
-        <option>Closed</option>
-      </select>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;">Spot assignments</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="filter-market" onchange="renderAdmin()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);"><option value="">All cities</option></select>
+        <select id="filter-status" onchange="renderAdmin()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);">
+          <option value="">All statuses</option>
+          <option>Open</option>
+          <option>Claimed</option>
+          <option>Confirmed</option>
+          <option>Closed</option>
+        </select>
+        <input id="admin-name-filter" type="text" placeholder="Filter by name…" oninput="renderAdmin()"
+          style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:160px;">
+        <button id="admin-sort-btn" onclick="toggleAdminSort()"
+          style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);cursor:pointer;white-space:nowrap;">
+          Newest first ↓
+        </button>
+      </div>
     </div>
     <div style="overflow-x:auto;margin-bottom:2.5rem;">
       <table class="admin-table">
@@ -358,7 +366,17 @@
       </table>
     </div>
 
-    <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;margin-bottom:10px;">Post-visit reports</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;">Post-visit reports</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input id="pv-admin-name-filter" type="text" placeholder="Filter by name…" oninput="renderPvReports()"
+          style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:160px;">
+        <button id="pv-admin-sort-btn" onclick="togglePvAdminSort()"
+          style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);cursor:pointer;white-space:nowrap;">
+          Newest first ↓
+        </button>
+      </div>
+    </div>
     <div style="overflow-x:auto;">
       <table class="admin-table">
         <thead>
@@ -1004,14 +1022,26 @@ function renderClaimLog() {
   }
 }
 
+let pvAdminSortAsc = false;
+
+function togglePvAdminSort() {
+  pvAdminSortAsc = !pvAdminSortAsc;
+  const btn = document.getElementById('pv-admin-sort-btn');
+  if (btn) btn.textContent = pvAdminSortAsc ? 'Oldest first ↑' : 'Newest first ↓';
+  renderPvReports();
+}
+
 function renderPvReports() {
   const tbody = document.getElementById('pv-admin-tbody');
-  if (!pvReports.length) {
-    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>`;
+  const nameFilter = (document.getElementById('pv-admin-name-filter')?.value || '').toLowerCase().trim();
+  let filtered = pvReports.filter(r => !nameFilter || (r.name || '').toLowerCase().includes(nameFilter));
+  const sorted = pvAdminSortAsc ? filtered.slice() : filtered.slice().reverse();
+  if (!sorted.length) {
+    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
     return;
   }
-  tbody.innerHTML = pvReports.slice().reverse().map((r, i) => {
-    const idx = pvReports.length - 1 - i;
+  tbody.innerHTML = sorted.map(r => {
+    const idx = pvReports.indexOf(r);
     const matchedSpot = spots.find(s => s.name === r.restaurant);
     const matchedSlot = matchedSpot && matchedSpot.cardSlots[r.card];
     const lockedReimb = (matchedSlot && matchedSlot.claimant && matchedSlot.claimant.reimb != null)
@@ -1248,17 +1278,35 @@ async function submitClaim() {
   updateStats();
 }
 
+let adminSortAsc = false;
+
+function toggleAdminSort() {
+  adminSortAsc = !adminSortAsc;
+  const btn = document.getElementById('admin-sort-btn');
+  if (btn) btn.textContent = adminSortAsc ? 'Oldest first ↑' : 'Newest first ↓';
+  renderAdmin();
+}
+
 function renderAdmin() {
-  const mFilter = document.getElementById('filter-market').value;
-  const sFilter = document.getElementById('filter-status').value;
+  const mFilter    = document.getElementById('filter-market').value;
+  const sFilter    = document.getElementById('filter-status').value;
+  const nameFilter = (document.getElementById('admin-name-filter')?.value || '').toLowerCase().trim();
   const rows = [];
   spots.forEach(s => {
     s.cards.forEach(card => {
       const slot = s.cardSlots[card];
-      if ((!mFilter || s.market === mFilter) && (!sFilter || slot.status === sFilter)) {
+      const c = slot.claimant;
+      const nameMatch = !nameFilter || (c && (c.name || '').toLowerCase().includes(nameFilter));
+      if ((!mFilter || s.market === mFilter) && (!sFilter || slot.status === sFilter) && nameMatch) {
         rows.push({ s, card, slot });
       }
     });
+  });
+  // Sort by claimedAt
+  rows.sort((a, b) => {
+    const ta = a.slot.claimant?.claimedAt || '';
+    const tb = b.slot.claimant?.claimedAt || '';
+    return adminSortAsc ? ta.localeCompare(tb) : tb.localeCompare(ta);
   });
   if (!rows.length) {
     document.getElementById('admin-tbody').innerHTML = `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-3);">No results found</td></tr>`;
