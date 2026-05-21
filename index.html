@@ -1034,6 +1034,19 @@ async function submitClaim() {
   const s = spots.find(r => r.id === selectedId);
   const slot = s.cardSlots[selectedCard];
   if (slot.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
+
+  // Fresh read from JSONBin before saving to prevent race condition double-claims
+  try {
+    const freshRecord = await loadFromBin();
+    const freshSpot = (freshRecord.spots || []).find(x => x.id === selectedId);
+    const freshSlot = freshSpot && freshSpot.cardSlots && freshSpot.cardSlots[selectedCard];
+    if (freshSlot && freshSlot.status !== 'Open') {
+      alert('Sorry, this spot was just claimed by someone else!');
+      await loadSpots();
+      return;
+    }
+  } catch(e) { /* network error — proceed and let saveToBin handle it */ }
+
   slot.status = 'Claimed';
   const lockedReimb = s.reimb && s.reimb[selectedCard] ? s.reimb[selectedCard] : 0;
   slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt: new Date().toISOString(), reimb: lockedReimb, restaurantName: s.name, restaurantAddr: s.addr, restaurantMarket: s.market };
