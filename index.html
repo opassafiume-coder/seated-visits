@@ -144,6 +144,7 @@
     <button class="tab active" onclick="switchTab('browse')">Sign up</button>
     <button class="tab" onclick="switchTab('postvisit')">Post-visit</button>
     <button class="tab" id="admin-tab" style="display:none;" onclick="switchTab('admin')">Admin</button>
+    <button class="tab" id="log-tab" style="display:none;" onclick="switchTab('log')">Audit Log</button>
   </div>
   <div id="user-chip" class="user-chip" style="display:none;">
     <img id="user-pic" alt="" />
@@ -383,6 +384,66 @@
       </table>
     </div>
   </div>
+
+  <div id="view-log" class="view">
+    <div class="container">
+
+      <!-- Claims Section -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+        <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;">Claims — all time</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input id="log-name-filter" type="text" placeholder="Filter by name…" oninput="renderClaimLog()"
+            style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:180px;">
+          <button id="log-sort-btn" onclick="toggleClaimLogSort()"
+            style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);cursor:pointer;white-space:nowrap;">
+            Newest first ↓
+          </button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;margin-bottom:40px;">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Claimed At</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Restaurant</th>
+              <th>City</th>
+              <th>Card</th>
+              <th>Reimb</th>
+            </tr>
+          </thead>
+          <tbody id="claim-log-tbody">
+            <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">No claims logged yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Post-Visit Summaries Section -->
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;margin-bottom:10px;">Post-Visit Summaries — all time</div>
+      <div style="overflow-x:auto;">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Submitted</th>
+              <th>Name</th>
+              <th>Restaurant</th>
+              <th>Card</th>
+              <th>Last 4</th>
+              <th>Amount</th>
+              <th>Reimb</th>
+              <th>Venmo</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="pv-log-tbody">
+            <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
 </div>
 
 <script>
@@ -481,6 +542,7 @@ async function afterAuth() {
   document.body.classList.remove('locked');
   if (ADMIN_EMAILS.includes(userProfile.email.toLowerCase())) {
     document.getElementById('admin-tab').style.display = 'flex';
+    document.getElementById('log-tab').style.display = 'flex';
   }
   await loadConfigFromSheet();
   await loadSpots();
@@ -609,6 +671,7 @@ async function loadRestaurantsFromSheet() {
 
 let spots = [];
 let pvReports = [];
+let claimLog = [];
 let savedSpotsRaw = []; // raw JSONBin data, preserved so removed restaurants can still submit post-visit reports
 let selectedId = null;
 let selectedCard = null;
@@ -622,7 +685,7 @@ async function loadFromBin() {
     });
     const data = await res.json();
     return data.record;
-  } catch(e) { return { spots: [], pvReports: [] }; }
+  } catch(e) { return { spots: [], pvReports: [], claimLog: [] }; }
 }
 
 async function notifySaveFailure(reason, context) {
@@ -639,11 +702,13 @@ async function notifySaveFailure(reason, context) {
 
     await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
       to_email: CONFIG.ADMIN_EMAIL,
-      claimant_name: 'SYSTEM ALERT',
-      claimant_email: CONFIG.ADMIN_EMAIL,
-      restaurant: '⚠️ JSONBin Save Failure',
-      address: reason,
-      cards: claimedSpots || 'No claim details available',
+      claimant_name: '🚨 ACTION REQUIRED — Seated Visits System Alert',
+      claimant_email: 'system-alert (do not reply)',
+      restaurant: '⚠️ JSONBin Save FAILED — A claim may not have saved',
+      address: `Error detail: ${reason}`,
+      cards: 'See below',
+      card_reminder: `A claim was submitted but FAILED to save to JSONBin. The claim may be lost.\n\nActive claims logged at time of failure:\n\n${claimedSpots || 'Could not retrieve claim list'}`,
+      deadline_note: 'Log into the app immediately and verify all claims are correct. Use the Claim Log tab to check for any missing entries.',
     }, CONFIG.EMAILJS_PUBLIC);
   } catch(e) { console.error('Failed to send save failure notification:', e); }
 }
@@ -657,7 +722,7 @@ async function saveToBin() {
     const res = await fetch(jsonbinUrl(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': CONFIG.JSONBIN_KEY },
-      body: JSON.stringify({ spots: spotsData, pvReports })
+      body: JSON.stringify({ spots: spotsData, pvReports, claimLog })
     });
     if (!res.ok) {
       const err = await res.text();
@@ -745,6 +810,7 @@ async function loadSpots() {
   const savedSpots = record.spots || [];
   savedSpotsRaw = savedSpots;
   pvReports = record.pvReports || [];
+  claimLog = record.claimLog || [];
 
   // Check for claims affected by sheet changes — notify admin
   const removedClaims = [];    // restaurant removed entirely
@@ -779,11 +845,13 @@ async function loadSpots() {
       emailjs.init(CONFIG.EMAILJS_PUBLIC);
       await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
         to_email: CONFIG.ADMIN_EMAIL,
-        claimant_name: '⚠️ SHEET UPDATE — CLAIMS AFFECTED',
-        claimant_email: CONFIG.ADMIN_EMAIL,
-        restaurant: `${allAffected.length} claim(s) affected by sheet update`,
-        address: 'These claimants need to be notified:',
+        claimant_name: '⚠️ Seated Visits — Sheet Update Alert',
+        claimant_email: 'system-alert (do not reply)',
+        restaurant: `${allAffected.length} claim(s) affected by your sheet update`,
+        address: 'The following claimants need to be notified manually:',
         cards: details,
+        card_reminder: details,
+        deadline_note: 'Review the affected claims above and reach out to each claimant to let them know their spot was removed or changed.',
       }, CONFIG.EMAILJS_PUBLIC);
     } catch(e) { console.error('Failed to send affected claims alert:', e); }
   }
@@ -845,6 +913,7 @@ async function loadSpots() {
   populatePostVisitRestaurants();
   updateBrowseCount();
   renderPvReports();
+  renderClaimLog();
 }
 
 async function loadPvReports() {
@@ -853,6 +922,65 @@ async function loadPvReports() {
 
 async function savePvReports() {
   await saveToBin();
+}
+
+let claimLogSortAsc = false; // default: newest first
+
+function toggleClaimLogSort() {
+  claimLogSortAsc = !claimLogSortAsc;
+  const btn = document.getElementById('log-sort-btn');
+  if (btn) btn.textContent = claimLogSortAsc ? 'Oldest first ↑' : 'Newest first ↓';
+  renderClaimLog();
+}
+
+function renderClaimLog() {
+  // ── Claims table ──
+  const tbody = document.getElementById('claim-log-tbody');
+  if (tbody) {
+    const nameFilter = (document.getElementById('log-name-filter')?.value || '').toLowerCase().trim();
+    let filtered = claimLog.filter(c => !nameFilter || (c.name || '').toLowerCase().includes(nameFilter));
+    const sorted = claimLogSortAsc ? filtered.slice() : filtered.slice().reverse();
+    if (!sorted.length) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No claims match that name' : 'No claims logged yet'}</td></tr>`;
+    } else {
+      tbody.innerHTML = sorted.map(c => {
+        const ts = new Date(c.loggedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return `<tr>
+          <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;white-space:nowrap;">${ts}</td>
+          <td><div style="font-weight:500;font-size:13px;">${c.name}</div></td>
+          <td style="font-size:12px;color:var(--text-2);">${c.email}</td>
+          <td><div style="font-size:13px;font-weight:500;">${c.restaurant}</div><div style="font-size:11px;color:var(--text-3);">${c.address || ''}</div></td>
+          <td style="font-size:13px;color:var(--text-2);">${c.city || ''}</td>
+          <td>${cardBadge(c.card)}</td>
+          <td style="font-size:13px;font-weight:600;color:#1A5C36;">${c.reimb ? '$' + c.reimb : '—'}</td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  // ── Post-visit summaries table ──
+  const pvTbody = document.getElementById('pv-log-tbody');
+  if (pvTbody) {
+    if (!pvReports.length) {
+      pvTbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>`;
+    } else {
+      const statusColor = { Approved: '#1A5C36', Voided: '#9B1C1C', Pending: '#92400e' };
+      pvTbody.innerHTML = pvReports.slice().reverse().map(r => {
+        const statusStyle = `font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:${r.adminStatus === 'Approved' ? '#DCFCE7' : r.adminStatus === 'Voided' ? '#FEE2E2' : '#FEF3C7'};color:${statusColor[r.adminStatus] || '#374151'};`;
+        return `<tr>
+          <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;white-space:nowrap;">${r.submittedAt || '—'}</td>
+          <td><div style="font-weight:500;font-size:13px;">${r.name}</div><div style="font-size:11px;color:var(--text-3);">${r.email}</div></td>
+          <td><div style="font-size:13px;font-weight:500;">${r.restaurant}</div></td>
+          <td>${cardBadge(r.card)}</td>
+          <td style="font-size:12px;font-family:'DM Mono',monospace;">${r.last4 || '—'}</td>
+          <td style="font-size:13px;font-weight:500;">$${r.amount || '—'}</td>
+          <td style="font-size:13px;font-weight:600;color:#1A5C36;">${r.reimb ? '$' + r.reimb : '—'}</td>
+          <td style="font-size:12px;color:var(--text-2);">@${r.venmo || '—'}</td>
+          <td><span style="${statusStyle}">${r.adminStatus || 'Pending'}</span></td>
+        </tr>`;
+      }).join('');
+    }
+  }
 }
 
 function renderPvReports() {
@@ -1049,7 +1177,9 @@ async function submitClaim() {
 
   slot.status = 'Claimed';
   const lockedReimb = s.reimb && s.reimb[selectedCard] ? s.reimb[selectedCard] : 0;
-  slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt: new Date().toISOString(), reimb: lockedReimb, restaurantName: s.name, restaurantAddr: s.addr, restaurantMarket: s.market };
+  const claimedAt = new Date().toISOString();
+  slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt, reimb: lockedReimb, restaurantName: s.name, restaurantAddr: s.addr, restaurantMarket: s.market };
+  claimLog.push({ loggedAt: claimedAt, name, email, rel, restaurant: s.name, address: s.addr, city: s.market, card: selectedCard, reimb: lockedReimb, restaurantId: s.id });
   await saveSpots();
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
