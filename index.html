@@ -1244,6 +1244,7 @@ async function submitClaim() {
       relation: rel,
       employee_email: isFriendFamily ? employeeEmail : 'N/A',
       cards: selectedCard,
+      reimb: lockedReimb ? `$${lockedReimb}` : 'TBD',
       claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     });
     const claimInstructions = {
@@ -1252,6 +1253,7 @@ async function submitClaim() {
       restaurant: s.name,
       address: s.addr,
       cards: selectedCard,
+      reimb: lockedReimb ? `$${lockedReimb}` : 'TBD',
       card_reminder: `Before heading to ${s.name}, make sure your ${selectedCard} card is already linked in the Seated app. If it's not linked yet, do that before you go.`,
       deadline_note: `You have 48 hours from now to complete your visit. If the visit isn't done in time, your spot will be released back into the pool.`,
     };
@@ -1609,12 +1611,14 @@ async function submitPostVisit() {
   const dinerInfo = isFriendFamily
     ? `Friend / Family of employee\nTheir personal email: ${email}\nEmployee's Seated email: ${employeeEmail}`
     : `Employee\nSeated email: ${email}`;
+  const pvReimb = claimant.reimb != null ? `$${claimant.reimb}` : 'TBD';
   const summaryData = {
     claimant_name: name, claimant_email: email,
     relation: rel, diner_info: dinerInfo,
     restaurant, visit_date: visitDate,
     card_used: card, last_four: last4,
     amount: `$${parseFloat(amount).toFixed(2)}`,
+    reimb: pvReimb,
     venmo: venmo || 'Not provided',
     notes: notes || 'None',
     receipt_url: receiptUrl || 'Not uploaded',
