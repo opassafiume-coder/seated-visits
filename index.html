@@ -1482,7 +1482,7 @@ function lookupClaims() {
   spots.forEach(s => {
     s.cards.forEach(card => {
       const slot = s.cardSlots[card];
-      if (slot?.status === 'Claimed' && slot?.claimant?.email?.toLowerCase() === email) {
+      if (['Claimed','Confirmed'].includes(slot?.status) && slot?.claimant?.email?.toLowerCase() === email) {
         matches.push({ spot: s, card, claimant: slot.claimant });
         matchedIds.add(`${s.id}-${card}`);
       }
@@ -1494,7 +1494,7 @@ function lookupClaims() {
     Object.entries(saved.cardSlots).forEach(([card, slot]) => {
       const key = `${saved.id}-${card}`;
       if (matchedIds.has(key)) return;
-      if (slot?.status === 'Claimed' && slot?.claimant?.email?.toLowerCase() === email && slot.claimant.restaurantName) {
+      if (['Claimed','Confirmed'].includes(slot?.status) && slot?.claimant?.email?.toLowerCase() === email && slot.claimant.restaurantName) {
         const ghostSpot = { id: saved.id, name: slot.claimant.restaurantName, addr: slot.claimant.restaurantAddr || '', market: slot.claimant.restaurantMarket || '', cards: [card], cardSlots: { [card]: slot } };
         matches.push({ spot: ghostSpot, card, claimant: slot.claimant });
       }
