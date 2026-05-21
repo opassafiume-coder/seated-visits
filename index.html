@@ -609,6 +609,7 @@ async function loadRestaurantsFromSheet() {
 
 let spots = [];
 let pvReports = [];
+let savedSpotsRaw = []; // raw JSONBin data, preserved so removed restaurants can still submit post-visit reports
 let selectedId = null;
 let selectedCard = null;
 
@@ -742,6 +743,7 @@ async function loadSpots() {
   await loadRestaurantsFromSheet();
   const record = await loadFromBin();
   const savedSpots = record.spots || [];
+  savedSpotsRaw = savedSpots;
   pvReports = record.pvReports || [];
 
   // Check for claims affected by sheet changes — notify admin
@@ -1020,7 +1022,7 @@ async function submitClaim() {
   if (slot.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
   slot.status = 'Claimed';
   const lockedReimb = s.reimb && s.reimb[selectedCard] ? s.reimb[selectedCard] : 0;
-  slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt: new Date().toISOString(), reimb: lockedReimb };
+  slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt: new Date().toISOString(), reimb: lockedReimb, restaurantName: s.name, restaurantAddr: s.addr, restaurantMarket: s.market };
   await saveSpots();
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
@@ -1246,13 +1248,27 @@ function lookupClaims() {
   errEl.style.display = 'none';
   if (!email) { errEl.textContent = 'Please enter your email.'; errEl.style.display = 'block'; return; }
 
-  // Find all claimed slots matching this email
+  // Find all claimed slots matching this email — including removed restaurants from JSONBin
   const matches = [];
+  const matchedIds = new Set();
   spots.forEach(s => {
     s.cards.forEach(card => {
       const slot = s.cardSlots[card];
       if (slot?.status === 'Claimed' && slot?.claimant?.email?.toLowerCase() === email) {
         matches.push({ spot: s, card, claimant: slot.claimant });
+        matchedIds.add(`${s.id}-${card}`);
+      }
+    });
+  });
+  // Also check raw JSONBin for claims on restaurants no longer in the sheet
+  savedSpotsRaw.forEach(saved => {
+    if (!saved.cardSlots) return;
+    Object.entries(saved.cardSlots).forEach(([card, slot]) => {
+      const key = `${saved.id}-${card}`;
+      if (matchedIds.has(key)) return;
+      if (slot?.status === 'Claimed' && slot?.claimant?.email?.toLowerCase() === email && slot.claimant.restaurantName) {
+        const ghostSpot = { id: saved.id, name: slot.claimant.restaurantName, addr: slot.claimant.restaurantAddr || '', market: slot.claimant.restaurantMarket || '', cards: [card], cardSlots: { [card]: slot } };
+        matches.push({ spot: ghostSpot, card, claimant: slot.claimant });
       }
     });
   });
