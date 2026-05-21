@@ -789,7 +789,12 @@ async function loadSpots() {
   }
 
   spots = RESTAURANTS.map(r => {
-    const s = savedSpots.find(x => x.id === r.id);
+    // Match by ID first, then fall back to name+address in case Business ID changed between uploads
+    const s = savedSpots.find(x => x.id === r.id) ||
+              savedSpots.find(x => {
+                const c = Object.values(x.cardSlots || {}).find(slot => slot.claimant && slot.claimant.restaurantName);
+                return c && c.claimant.restaurantName === r.name && c.claimant.restaurantAddr === r.addr;
+              });
     const cardSlots = {};
     r.cards.forEach(card => {
       cardSlots[card] = (s && s.cardSlots && s.cardSlots[card])
