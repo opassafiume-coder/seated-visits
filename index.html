@@ -1607,8 +1607,18 @@ async function submitPostVisit() {
     notes, receiptUrl, ccpostUrl,
     submittedAt: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   });
-  await savePvReports();
+
+  // Release the claim slot — claims only go away when a post-visit is submitted
+  const claimedSpot = spots.find(s => s.name === restaurant);
+  if (claimedSpot && card && claimedSpot.cardSlots[card]) {
+    claimedSpot.cardSlots[card].status = 'Open';
+    claimedSpot.cardSlots[card].claimant = null;
+  }
+
+  await saveToBin();
   renderPvReports();
+  renderBrowse();
+  renderStats();
 
   // Send summary emails
   const dinerInfo = isFriendFamily
