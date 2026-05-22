@@ -751,31 +751,57 @@ async function saveToBin() {
   let mergedSpots, mergedPvReports, mergedClaimLog;
   try {
     const freshRes = await fetch(jsonbinUrl() + '/latest', {
-      headers: { 'X-Master-Key': CONFIG.JSONBIN_KEY, 'X-Bin-Meta': 'true' }
+      headers: { 'X-Master-Key': CONFIG.JSONBIN_KEY }
     });
     const freshData = await freshRes.json();
     const live = freshData.record || {};
-    binVersion = freshData.metadata?.version ?? binVersion;
 
-    // Merge spots: start from the live JSONBin spots, then apply our local state on top.
-    // This means any claims added by others since we loaded are preserved.
+    // Merge spots at the SLOT level — never downgrade a live claim to Open.
+    // Rule: if live slot is Claimed/Confirmed/Closed, keep it unless our local version
+    // is also non-Open (meaning we intentionally changed it, e.g. admin closed it).
     const liveSpotMap = {};
     (live.spots || []).forEach(s => { liveSpotMap[s.id] = s; });
 
-    // Our local spots (with any changes we just made)
     const ourSpotsData = spots
       .filter(s => Object.values(s.cardSlots).some(slot => slot.status !== 'Open'))
       .map(s => ({ id: s.id, cardSlots: s.cardSlots }));
-    const ourSpotMap = {};
-    ourSpotsData.forEach(s => { ourSpotMap[s.id] = s; });
 
-    // Merge: for each spot in live, preserve it unless we have an updated version
     const mergedSpotMap = { ...liveSpotMap };
-    ourSpotsData.forEach(s => { mergedSpotMap[s.id] = s; });
-    // Remove any spots that are now all-Open in our local state
-    spots.forEach(s => {
-      const allOpen = Object.values(s.cardSlots).every(slot => slot.status === 'Open');
-      if (allOpen) delete mergedSpotMap[s.id];
+    ourSpotsData.forEach(ourSpot => {
+      const live = liveSpotMap[ourSpot.id];
+      if (!live) {
+        mergedSpotMap[ourSpot.id] = ourSpot;
+        return;
+      }
+      // Merge slot by slot
+      const mergedSlots = { ...live.cardSlots };
+      Object.entries(ourSpot.cardSlots).forEach(([card, ourSlot]) => {
+        const liveSlot = live.cardSlots?.[card];
+        const liveActive = liveSlot && liveSlot.status !== 'Open';
+        const ourActive  = ourSlot.status !== 'Open';
+        if (ourActive) {
+          // We have an active claim/status — use ours (intentional change)
+          mergedSlots[card] = ourSlot;
+        } else if (liveActive) {
+          // Live has a claim but we don't — keep the live claim (don't wipe it)
+          mergedSlots[card] = liveSlot;
+        } else {
+          // Both Open — use ours
+          mergedSlots[card] = ourSlot;
+        }
+      });
+      // Also keep any live slots we don't have locally at all
+      Object.entries(live.cardSlots || {}).forEach(([card, liveSlot]) => {
+        if (!(card in ourSpot.cardSlots) && liveSlot.status !== 'Open') {
+          mergedSlots[card] = liveSlot;
+        }
+      });
+      mergedSpotMap[ourSpot.id] = { id: ourSpot.id, cardSlots: mergedSlots };
+    });
+    // Remove spots that are now entirely Open after merge
+    Object.keys(mergedSpotMap).forEach(id => {
+      const allOpen = Object.values(mergedSpotMap[id].cardSlots).every(s => s.status === 'Open');
+      if (allOpen) delete mergedSpotMap[id];
     });
     mergedSpots = Object.values(mergedSpotMap);
 
