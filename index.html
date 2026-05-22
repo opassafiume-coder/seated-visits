@@ -706,15 +706,17 @@ let claimLog = [];
 let savedSpotsRaw = []; // raw JSONBin data, preserved so removed restaurants can still submit post-visit reports
 let selectedId = null;
 let selectedCard = null;
+let binVersion = null; // tracks the JSONBin version we last loaded, used to detect race conditions
 
 function jsonbinUrl() { return `https://api.jsonbin.io/v3/b/${CONFIG.JSONBIN_ID}`; }
 
 async function loadFromBin() {
   try {
     const res = await fetch(jsonbinUrl() + '/latest', {
-      headers: { 'X-Master-Key': CONFIG.JSONBIN_KEY }
+      headers: { 'X-Master-Key': CONFIG.JSONBIN_KEY, 'X-Bin-Meta': 'true' }
     });
     const data = await res.json();
+    binVersion = data.metadata?.version ?? null;
     return data.record;
   } catch(e) { return { spots: [], pvReports: [], claimLog: [] }; }
 }
@@ -745,15 +747,65 @@ async function notifySaveFailure(reason, context) {
 }
 
 async function saveToBin() {
-  // Only save spots with at least one non-Open slot — keeps payload small and under JSONBin limits.
-  const spotsData = spots
-    .filter(s => Object.values(s.cardSlots).some(slot => slot.status !== 'Open'))
-    .map(s => ({ id: s.id, cardSlots: s.cardSlots }));
+  // Re-fetch the latest state from JSONBin right before saving to prevent race conditions.
+  // Merge: any claims present in the live bin that we don't have locally get preserved.
+  let mergedSpots, mergedPvReports, mergedClaimLog;
+  try {
+    const freshRes = await fetch(jsonbinUrl() + '/latest', {
+      headers: { 'X-Master-Key': CONFIG.JSONBIN_KEY, 'X-Bin-Meta': 'true' }
+    });
+    const freshData = await freshRes.json();
+    const live = freshData.record || {};
+    binVersion = freshData.metadata?.version ?? binVersion;
+
+    // Merge spots: start from the live JSONBin spots, then apply our local state on top.
+    // This means any claims added by others since we loaded are preserved.
+    const liveSpotMap = {};
+    (live.spots || []).forEach(s => { liveSpotMap[s.id] = s; });
+
+    // Our local spots (with any changes we just made)
+    const ourSpotsData = spots
+      .filter(s => Object.values(s.cardSlots).some(slot => slot.status !== 'Open'))
+      .map(s => ({ id: s.id, cardSlots: s.cardSlots }));
+    const ourSpotMap = {};
+    ourSpotsData.forEach(s => { ourSpotMap[s.id] = s; });
+
+    // Merge: for each spot in live, preserve it unless we have an updated version
+    const mergedSpotMap = { ...liveSpotMap };
+    ourSpotsData.forEach(s => { mergedSpotMap[s.id] = s; });
+    // Remove any spots that are now all-Open in our local state
+    spots.forEach(s => {
+      const allOpen = Object.values(s.cardSlots).every(slot => slot.status === 'Open');
+      if (allOpen) delete mergedSpotMap[s.id];
+    });
+    mergedSpots = Object.values(mergedSpotMap);
+
+    // Merge pvReports: union of live + ours (dedupe by submittedAt+email+restaurant)
+    const pvKey = r => `${r.submittedAt}|${r.email}|${r.restaurant}`;
+    const pvSeen = new Set((live.pvReports || []).map(pvKey));
+    mergedPvReports = [...(live.pvReports || [])];
+    pvReports.forEach(r => { if (!pvSeen.has(pvKey(r))) mergedPvReports.push(r); });
+
+    // Merge claimLog: union (dedupe by loggedAt+email+card+restaurantId)
+    const logKey = e => `${e.loggedAt}|${e.email}|${e.card}|${e.restaurantId}`;
+    const logSeen = new Set((live.claimLog || []).map(logKey));
+    mergedClaimLog = [...(live.claimLog || [])];
+    claimLog.forEach(e => { if (!logSeen.has(logKey(e))) mergedClaimLog.push(e); });
+
+  } catch(e) {
+    // If we can't fetch fresh data, fall back to local state
+    mergedSpots = spots
+      .filter(s => Object.values(s.cardSlots).some(slot => slot.status !== 'Open'))
+      .map(s => ({ id: s.id, cardSlots: s.cardSlots }));
+    mergedPvReports = pvReports;
+    mergedClaimLog = claimLog;
+  }
+
   try {
     const res = await fetch(jsonbinUrl(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': CONFIG.JSONBIN_KEY },
-      body: JSON.stringify({ spots: spotsData, pvReports, claimLog })
+      body: JSON.stringify({ spots: mergedSpots, pvReports: mergedPvReports, claimLog: mergedClaimLog })
     });
     if (!res.ok) {
       const err = await res.text();
