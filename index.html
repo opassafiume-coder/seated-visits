@@ -564,7 +564,6 @@ function onCredentialResponse(resp) {
 }
 
 const ADMIN_EMAILS    = ['opassafiume@seatedapp.io','prao@seatedapp.io','hxiao@seatedapp.io'];
-const SUPER_ADMIN     = 'opassafiume@seatedapp.io'; // only this user can clear/close/reopen claims
 
 async function afterAuth() {
   document.getElementById('user-pic').src = userProfile.picture || '';
@@ -1330,10 +1329,10 @@ function renderAdmin() {
       <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div>${c.employeeEmail ? `<div style="color:var(--text-3);margin-top:1px;">Employee: ${c.employeeEmail}</div>` : ''}<div style="color:var(--text-3);margin-top:1px;">${c.rel}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
       <td style="font-size:13px;font-weight:600;color:#1A5C36;">${c && c.reimb ? `$${c.reimb}` : (s.reimb && s.reimb[card] ? `$${s.reimb[card]}` : '—')}</td>
       <td>
-        ${slot.status === 'Open' && userProfile.email.toLowerCase() === SUPER_ADMIN ? `<button class="action-btn" onclick="manualClaim(${s.id},'${card}')">Manual claim</button>` : ''}
+        ${slot.status === 'Open' ? `<button class="action-btn" onclick="manualClaim(${s.id},'${card}')">Manual claim</button>` : ''}
         ${slot.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Confirmed')">Confirm</button>` : ''}
-        ${['Claimed','Confirmed'].includes(slot.status) && userProfile.email.toLowerCase() === SUPER_ADMIN ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Closed')">Close</button>` : ''}
-        ${slot.status !== 'Open' && userProfile.email.toLowerCase() === SUPER_ADMIN ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Open')">Reopen</button>` : ''}
+        ${['Claimed','Confirmed'].includes(slot.status) ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Closed')">Close</button>` : ''}
+        ${slot.status !== 'Open' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Open')">Reopen</button>` : ''}
       </td>
     </tr>`;
   });
@@ -1358,12 +1357,6 @@ async function manualClaim(id, card) {
 }
 
 async function setStatus(id, card, status) {
-  // Only super admin can clear/close/reopen claims
-  const isSuper = userProfile.email.toLowerCase() === SUPER_ADMIN;
-  if (!isSuper && ['Open','Closed'].includes(status)) {
-    alert('Only Olivia can clear or close claims.');
-    return;
-  }
   const s = spots.find(r => r.id === id);
   s.cardSlots[card].status = status;
   if (status === 'Open') s.cardSlots[card].claimant = null;
@@ -1615,17 +1608,8 @@ async function submitPostVisit() {
     submittedAt: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   });
 
-  // Release the claim slot — claims only go away when a post-visit is submitted
-  const claimedSpot = spots.find(s => s.name === restaurant);
-  if (claimedSpot && card && claimedSpot.cardSlots[card]) {
-    claimedSpot.cardSlots[card].status = 'Open';
-    claimedSpot.cardSlots[card].claimant = null;
-  }
-
-  await saveToBin();
+  await savePvReports();
   renderPvReports();
-  renderBrowse();
-  renderStats();
 
   // Send summary emails
   const dinerInfo = isFriendFamily
@@ -1661,10 +1645,6 @@ async function updatePvReceipt(idx, value) {
 }
 
 async function updatePvStatus(idx, value) {
-  if (userProfile.email.toLowerCase() !== SUPER_ADMIN) {
-    alert('Only Olivia can update post-visit report status.');
-    return;
-  }
   pvReports[idx].adminStatus = value;
   await savePvReports();
   // Voided: release the corresponding claim slot back to Open
