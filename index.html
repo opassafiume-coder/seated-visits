@@ -912,6 +912,28 @@ async function loadSpots() {
     return { ...r, cardSlots };
   });
 
+  // Add orphaned claims — spots saved in JSONBin that are no longer in the sheet.
+  // These still need to be visible to admins and submittable for post-visit reports.
+  const sheetIds = new Set(RESTAURANTS.map(r => r.id));
+  savedSpots.forEach(saved => {
+    if (sheetIds.has(saved.id)) return; // already handled above
+    const hasActiveClaim = Object.values(saved.cardSlots || {}).some(slot => slot.status !== 'Open' && slot.claimant);
+    if (!hasActiveClaim) return;
+    // Reconstruct a minimal spot object from claimant data
+    const firstClaim = Object.values(saved.cardSlots).find(slot => slot.claimant);
+    const c = firstClaim.claimant;
+    spots.push({
+      id: saved.id,
+      name: c.restaurantName || `Restaurant #${saved.id}`,
+      addr: c.restaurantAddr || '',
+      market: c.restaurantMarket || '',
+      cards: Object.keys(saved.cardSlots),
+      lat: null, lng: null,
+      orphaned: true, // flag so admin knows it's not in the sheet
+      cardSlots: saved.cardSlots
+    });
+  });
+
   const now = new Date();
   let anyExpired = false;
   spots.forEach(s => {
