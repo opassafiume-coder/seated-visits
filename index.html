@@ -1329,7 +1329,8 @@ function renderAdmin() {
   const nameFilter = (document.getElementById('admin-name-filter')?.value || '').toLowerCase().trim();
   const rows = [];
   spots.forEach(s => {
-    s.cards.forEach(card => {
+    // Use all keys in cardSlots (not just s.cards) so preserved claims on dropped cards still show
+    Object.keys(s.cardSlots).forEach(card => {
       const slot = s.cardSlots[card];
       const c = slot.claimant;
       const nameMatch = !nameFilter || (c && (c.name || '').toLowerCase().includes(nameFilter));
@@ -1399,7 +1400,7 @@ async function setStatus(id, card, status) {
 }
 
 function updateStats() {
-  const allSlots = spots.flatMap(s => s.cards.map(card => s.cardSlots[card]));
+  const allSlots = spots.flatMap(s => Object.values(s.cardSlots));
   document.getElementById('stat-total').textContent = allSlots.length;
   document.getElementById('stat-open').textContent = allSlots.filter(sl => sl.status === 'Open').length;
   document.getElementById('stat-claimed').textContent = allSlots.filter(sl => sl.status === 'Claimed').length;
@@ -1514,7 +1515,7 @@ function lookupClaims() {
   const matches = [];
   const matchedIds = new Set();
   spots.forEach(s => {
-    s.cards.forEach(card => {
+    Object.keys(s.cardSlots).forEach(card => {
       const slot = s.cardSlots[card];
       if (['Claimed','Confirmed'].includes(slot?.status) && slot?.claimant?.email?.toLowerCase() === email) {
         matches.push({ spot: s, card, claimant: slot.claimant });
