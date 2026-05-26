@@ -622,7 +622,7 @@ async function loadConfigFromSheet() {
   const rows = await fetchSheetValues('Config!A2:B');
   CONFIG = {};
   rows.forEach(([k, v]) => { if (k) CONFIG[String(k).trim()] = (v == null ? '' : String(v)).trim(); });
-  const required = ['IMGBB_KEY','JSONBIN_ID','JSONBIN_KEY','EMAILJS_PUBLIC','EMAILJS_SERVICE','EMAILJS_CLAIM_TEMPLATE','EMAILJS_REPORT_TEMPLATE','ADMIN_EMAIL'];
+  const required = ['IMGBB_KEY','GITHUB_TOKEN','EMAILJS_PUBLIC','EMAILJS_SERVICE','EMAILJS_CLAIM_TEMPLATE','EMAILJS_REPORT_TEMPLATE','ADMIN_EMAIL'];
   const missing = required.filter(k => !CONFIG[k]);
   if (missing.length) throw new Error('Config tab missing keys: ' + missing.join(', '));
 }
@@ -710,59 +710,78 @@ let claimLog = [];
 let savedSpotsRaw = []; // raw JSONBin data, preserved so removed restaurants can still submit post-visit reports
 let selectedId = null;
 let selectedCard = null;
-let binVersion = null; // tracks the JSONBin version we last loaded, used to detect race conditions
 
-function jsonbinUrl() { return `https://api.jsonbin.io/v3/b/${CONFIG.JSONBIN_ID}`; }
+// ── GitHub data storage ───────────────────────────────────────
+// Data is stored as data.json in the same GitHub repo that hosts this site.
+// Reads and writes use the GitHub Contents API.
+// GITHUB_TOKEN (in your Config sheet) is required for writes.
+const GITHUB_REPO      = 'opassafiume-coder/seated-visits';
+const GITHUB_DATA_FILE = 'data.json';
+
+function githubDataUrl() {
+  return `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_DATA_FILE}`;
+}
+
+function ghHeaders(write = false) {
+  const h = { 'Accept': 'application/vnd.github.v3+json' };
+  if (CONFIG.GITHUB_TOKEN) h['Authorization'] = `token ${CONFIG.GITHUB_TOKEN}`;
+  if (write) h['Content-Type'] = 'application/json';
+  return h;
+}
+
+function ghDecode(b64) {
+  return JSON.parse(decodeURIComponent(escape(atob(b64.replace(/\n/g, '')))));
+}
+
+function ghEncode(obj) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+}
 
 async function loadFromBin() {
   try {
-    const res = await fetch(jsonbinUrl() + '/latest', {
-      headers: { 'X-Master-Key': CONFIG.JSONBIN_KEY }
-    });
-    const data = await res.json();
-    return data.record;
+    const res = await fetch(githubDataUrl(), { headers: ghHeaders() });
+    if (!res.ok) throw new Error(`GitHub read failed: ${res.status}`);
+    const file = await res.json();
+    return ghDecode(file.content);
   } catch(e) { return { spots: [], pvReports: [], claimLog: [] }; }
 }
 
-async function notifySaveFailure(reason, context) {
+async function notifySaveFailure(reason) {
   try {
     const claimedSpots = spots.filter(s =>
       Object.values(s.cardSlots).some(slot => slot.status !== 'Open')
     ).map(s => {
-      const active = Object.entries(s.cardSlots)
+      return Object.entries(s.cardSlots)
         .filter(([, slot]) => slot.status !== 'Open')
         .map(([card, slot]) => `${s.name} (${card}) — ${slot.status}${slot.claimant ? ' by ' + slot.claimant.name + ' <' + slot.claimant.email + '>' : ''}`)
         .join('\n');
-      return active;
     }).filter(Boolean).join('\n');
 
     await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
       to_email: CONFIG.ADMIN_EMAIL,
       claimant_name: '🚨 ACTION REQUIRED — Seated Visits System Alert',
       claimant_email: 'system-alert (do not reply)',
-      restaurant: '⚠️ JSONBin Save FAILED — A claim may not have saved',
+      restaurant: '⚠️ GitHub Save FAILED — A claim may not have saved',
       address: `Error detail: ${reason}`,
       cards: 'See below',
-      card_reminder: `A claim was submitted but FAILED to save to JSONBin. The claim may be lost.\n\nActive claims logged at time of failure:\n\n${claimedSpots || 'Could not retrieve claim list'}`,
-      deadline_note: 'Log into the app immediately and verify all claims are correct. Use the Claim Log tab to check for any missing entries.',
+      card_reminder: `A claim was submitted but FAILED to save. The claim may be lost.\n\nActive claims at time of failure:\n\n${claimedSpots || 'Could not retrieve claim list'}`,
+      deadline_note: 'Log into the app immediately and verify all claims are correct.',
     }, CONFIG.EMAILJS_PUBLIC);
   } catch(e) { console.error('Failed to send save failure notification:', e); }
 }
 
 async function saveToBin() {
-  // Re-fetch the latest state from JSONBin right before saving to prevent race conditions.
-  // Merge: any claims present in the live bin that we don't have locally get preserved.
+  // Re-fetch latest from GitHub before saving to prevent race conditions.
+  // Merge at slot level — never downgrade a live claim to Open.
   let mergedSpots, mergedPvReports, mergedClaimLog;
+  let currentSha = null;
   try {
-    const freshRes = await fetch(jsonbinUrl() + '/latest', {
-      headers: { 'X-Master-Key': CONFIG.JSONBIN_KEY }
-    });
-    const freshData = await freshRes.json();
-    const live = freshData.record || {};
+    const freshRes = await fetch(githubDataUrl(), { headers: ghHeaders() });
+    if (!freshRes.ok) throw new Error(`GitHub read failed: ${freshRes.status}`);
+    const freshFile = await freshRes.json();
+    currentSha = freshFile.sha;
+    const live = ghDecode(freshFile.content);
 
-    // Merge spots at the SLOT level — never downgrade a live claim to Open.
-    // Rule: if live slot is Claimed/Confirmed/Closed, keep it unless our local version
-    // is also non-Open (meaning we intentionally changed it, e.g. admin closed it).
     const liveSpotMap = {};
     (live.spots || []).forEach(s => { liveSpotMap[s.id] = s; });
 
@@ -773,56 +792,37 @@ async function saveToBin() {
     const mergedSpotMap = { ...liveSpotMap };
     ourSpotsData.forEach(ourSpot => {
       const live = liveSpotMap[ourSpot.id];
-      if (!live) {
-        mergedSpotMap[ourSpot.id] = ourSpot;
-        return;
-      }
-      // Merge slot by slot
+      if (!live) { mergedSpotMap[ourSpot.id] = ourSpot; return; }
       const mergedSlots = { ...live.cardSlots };
       Object.entries(ourSpot.cardSlots).forEach(([card, ourSlot]) => {
         const liveSlot = live.cardSlots?.[card];
         const liveActive = liveSlot && liveSlot.status !== 'Open';
         const ourActive  = ourSlot.status !== 'Open';
-        if (ourActive) {
-          // We have an active claim/status — use ours (intentional change)
-          mergedSlots[card] = ourSlot;
-        } else if (liveActive) {
-          // Live has a claim but we don't — keep the live claim (don't wipe it)
-          mergedSlots[card] = liveSlot;
-        } else {
-          // Both Open — use ours
-          mergedSlots[card] = ourSlot;
-        }
+        if (ourActive)       mergedSlots[card] = ourSlot;
+        else if (liveActive) mergedSlots[card] = liveSlot;
+        else                 mergedSlots[card] = ourSlot;
       });
-      // Also keep any live slots we don't have locally at all
       Object.entries(live.cardSlots || {}).forEach(([card, liveSlot]) => {
-        if (!(card in ourSpot.cardSlots) && liveSlot.status !== 'Open') {
-          mergedSlots[card] = liveSlot;
-        }
+        if (!(card in ourSpot.cardSlots) && liveSlot.status !== 'Open') mergedSlots[card] = liveSlot;
       });
       mergedSpotMap[ourSpot.id] = { id: ourSpot.id, cardSlots: mergedSlots };
     });
-    // Remove spots that are now entirely Open after merge
     Object.keys(mergedSpotMap).forEach(id => {
-      const allOpen = Object.values(mergedSpotMap[id].cardSlots).every(s => s.status === 'Open');
-      if (allOpen) delete mergedSpotMap[id];
+      if (Object.values(mergedSpotMap[id].cardSlots).every(s => s.status === 'Open')) delete mergedSpotMap[id];
     });
     mergedSpots = Object.values(mergedSpotMap);
 
-    // Merge pvReports: union of live + ours (dedupe by submittedAt+email+restaurant)
     const pvKey = r => `${r.submittedAt}|${r.email}|${r.restaurant}`;
     const pvSeen = new Set((live.pvReports || []).map(pvKey));
     mergedPvReports = [...(live.pvReports || [])];
     pvReports.forEach(r => { if (!pvSeen.has(pvKey(r))) mergedPvReports.push(r); });
 
-    // Merge claimLog: union (dedupe by loggedAt+email+card+restaurantId)
     const logKey = e => `${e.loggedAt}|${e.email}|${e.card}|${e.restaurantId}`;
     const logSeen = new Set((live.claimLog || []).map(logKey));
     mergedClaimLog = [...(live.claimLog || [])];
     claimLog.forEach(e => { if (!logSeen.has(logKey(e))) mergedClaimLog.push(e); });
 
   } catch(e) {
-    // If we can't fetch fresh data, fall back to local state
     mergedSpots = spots
       .filter(s => Object.values(s.cardSlots).some(slot => slot.status !== 'Open'))
       .map(s => ({ id: s.id, cardSlots: s.cardSlots }));
@@ -831,20 +831,22 @@ async function saveToBin() {
   }
 
   try {
-    const res = await fetch(jsonbinUrl(), {
+    if (!currentSha) throw new Error('Could not read current file SHA — aborting to prevent data loss.');
+    const payload = { spots: mergedSpots, pvReports: mergedPvReports, claimLog: mergedClaimLog };
+    const res = await fetch(githubDataUrl(), {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Master-Key': CONFIG.JSONBIN_KEY },
-      body: JSON.stringify({ spots: mergedSpots, pvReports: mergedPvReports, claimLog: mergedClaimLog })
+      headers: ghHeaders(true),
+      body: JSON.stringify({ message: 'Update data', content: ghEncode(payload), sha: currentSha })
     });
     if (!res.ok) {
       const err = await res.text();
-      console.error('JSONBin save failed:', res.status, err);
-      alert(`⚠️ Warning: claim was submitted but failed to save (${res.status}). Please contact your admin immediately so the claim can be recorded manually.`);
+      console.error('GitHub save failed:', res.status, err);
+      alert(`⚠️ Warning: claim was submitted but failed to save (${res.status}). Please contact Olivia immediately.`);
       await notifySaveFailure(`HTTP ${res.status}: ${err}`);
     }
   } catch(e) {
-    console.error('JSONBin save error:', e);
-    alert('⚠️ Warning: claim was submitted but failed to save due to a network error. Please contact your admin immediately so the claim can be recorded manually.');
+    console.error('GitHub save error:', e);
+    alert('⚠️ Warning: claim was submitted but failed to save. Please contact Olivia immediately.');
     await notifySaveFailure(`Network error: ${e.message}`);
   }
 }
