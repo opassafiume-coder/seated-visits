@@ -490,10 +490,10 @@
 //    NOT the publish-to-web key.
 const OAUTH_CLIENT_ID = '352874229289-tglifiln7raionffiran3a63p6verre0.apps.googleusercontent.com';
 const SHEET_ID        = '15qUHpgov0nHUSxt0XMO0w0kYfCUUht_rhthZ9gOY0ac';
-const SCOPES          = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+const SCOPES          = 'https://www.googleapis.com/auth/spreadsheets';
 
 // Populated after sign-in from a `Config` tab in the sheet (two columns: key, value).
-// Required keys: IMGBB_KEY, JSONBIN_ID, JSONBIN_KEY, EMAILJS_PUBLIC, EMAILJS_SERVICE,
+// Required keys: IMGBB_KEY, EMAILJS_PUBLIC, EMAILJS_SERVICE,
 //                EMAILJS_CLAIM_TEMPLATE, EMAILJS_REPORT_TEMPLATE, ADMIN_EMAIL.
 // Optional: RESTAURANTS_RANGE (default 'Restaurants!A:Z').
 let CONFIG = {};
@@ -580,6 +580,7 @@ async function afterAuth() {
     document.getElementById('log-tab').style.display = 'flex';
   }
   await loadConfigFromSheet();
+  await ensureDataTabs();
   await loadSpots();
 }
 
@@ -622,7 +623,7 @@ async function loadConfigFromSheet() {
   const rows = await fetchSheetValues('Config!A2:B');
   CONFIG = {};
   rows.forEach(([k, v]) => { if (k) CONFIG[String(k).trim()] = (v == null ? '' : String(v)).trim(); });
-  const required = ['IMGBB_KEY','GITHUB_TOKEN','EMAILJS_PUBLIC','EMAILJS_SERVICE','EMAILJS_CLAIM_TEMPLATE','EMAILJS_REPORT_TEMPLATE','ADMIN_EMAIL'];
+  const required = ['IMGBB_KEY','EMAILJS_PUBLIC','EMAILJS_SERVICE','EMAILJS_CLAIM_TEMPLATE','EMAILJS_REPORT_TEMPLATE','ADMIN_EMAIL'];
   const missing = required.filter(k => !CONFIG[k]);
   if (missing.length) throw new Error('Config tab missing keys: ' + missing.join(', '));
 }
@@ -707,148 +708,166 @@ async function loadRestaurantsFromSheet() {
 let spots = [];
 let pvReports = [];
 let claimLog = [];
-let savedSpotsRaw = []; // raw JSONBin data, preserved so removed restaurants can still submit post-visit reports
 let selectedId = null;
 let selectedCard = null;
 
-// ── GitHub data storage ───────────────────────────────────────
-// Data is stored as data.json in the same GitHub repo that hosts this site.
-// Reads and writes use the GitHub Contents API.
-// GITHUB_TOKEN (in your Config sheet) is required for writes.
-const GITHUB_REPO      = 'opassafiume-coder/seated-visits';
-const GITHUB_DATA_FILE = 'data.json';
+// ── Google Sheets data storage ────────────────────────────────
+// Claims, PV Reports, and Claim Log are stored as tabs in the same
+// Google Sheet used for restaurant config. No external dependencies.
 
-function githubDataUrl() {
-  return `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_DATA_FILE}`;
+async function appendToSheet(tabName, row) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(tabName + '!A:Z')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values: [row] })
+  });
+  if (!res.ok) throw new Error(`Sheet append to "${tabName}" failed: ${res.status}`);
 }
 
-function ghHeaders(write = false) {
-  const h = { 'Accept': 'application/vnd.github.v3+json' };
-  if (CONFIG.GITHUB_TOKEN) h['Authorization'] = `token ${CONFIG.GITHUB_TOKEN}`;
-  if (write) h['Content-Type'] = 'application/json';
-  return h;
+async function updateSheetCell(range, value) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values: [[value]] })
+  });
+  if (!res.ok) throw new Error(`Sheet update "${range}" failed: ${res.status}`);
 }
 
-function ghDecode(b64) {
-  return JSON.parse(decodeURIComponent(escape(atob(b64.replace(/\n/g, '')))));
-}
-
-function ghEncode(obj) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
-}
-
-async function loadFromBin() {
+async function ensureDataTabs() {
   try {
-    const res = await fetch(githubDataUrl(), { headers: ghHeaders() });
-    if (!res.ok) throw new Error(`GitHub read failed: ${res.status}`);
-    const file = await res.json();
-    return ghDecode(file.content);
-  } catch(e) { return { spots: [], pvReports: [], claimLog: [] }; }
+    const metaRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties.title`,
+      { headers: { 'Authorization': `Bearer ${accessToken}` } }
+    );
+    const meta = await metaRes.json();
+    const existing = (meta.sheets || []).map(s => s.properties.title);
+    const tabs = [
+      { title: 'Claims',     headers: ['Restaurant ID','Restaurant Name','Address','City','Card','Status','Claimant Name','Claimant Email','Relation','Employee Email','Claimed At','Reimb'] },
+      { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received'] },
+      { title: 'Claim Log',  headers: ['Logged At','Name','Email','Relation','Restaurant','Address','City','Card','Reimb','Restaurant ID'] },
+    ];
+    const toCreate = tabs.filter(t => !existing.includes(t.title));
+    if (toCreate.length === 0) return;
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests: toCreate.map(t => ({ addSheet: { properties: { title: t.title } } })) })
+    });
+    for (const t of toCreate) await appendToSheet(t.title, t.headers);
+  } catch(e) { console.error('ensureDataTabs failed:', e); }
+}
+
+async function loadAllDataFromSheets() {
+  // ── Claims ──
+  const claimsMap = {};
+  try {
+    const vals = await fetchSheetValues('Claims!A:L');
+    if (vals.length > 1) {
+      const h = vals[0]; const idx = k => h.indexOf(k);
+      vals.slice(1).forEach((row, i) => {
+        const status = row[idx('Status')] || '';
+        if (!status || status === 'Open') return;
+        const rid = parseInt(row[idx('Restaurant ID')]);
+        const card = row[idx('Card')] || '';
+        if (!rid || !card) return;
+        if (!claimsMap[rid]) claimsMap[rid] = {};
+        if (!claimsMap[rid][card]) { // first row wins
+          claimsMap[rid][card] = {
+            status,
+            _sheetRow: i + 2, // 1-indexed + header row
+            claimant: {
+              name: row[idx('Claimant Name')] || '',
+              email: row[idx('Claimant Email')] || '',
+              rel: row[idx('Relation')] || '',
+              employeeEmail: row[idx('Employee Email')] || null,
+              claimedAt: row[idx('Claimed At')] || '',
+              reimb: parseFloat(row[idx('Reimb')]) || 0,
+              restaurantName: row[idx('Restaurant Name')] || '',
+              restaurantAddr: row[idx('Address')] || '',
+              restaurantMarket: row[idx('City')] || ''
+            }
+          };
+        }
+      });
+    }
+  } catch(e) { console.error('Failed to load Claims tab:', e); }
+
+  // ── PV Reports ──
+  const loadedPvReports = [];
+  try {
+    const vals = await fetchSheetValues('PV Reports!A:R');
+    if (vals.length > 1) {
+      const h = vals[0]; const idx = k => h.indexOf(k);
+      vals.slice(1).forEach((row, i) => {
+        if (!row[0]) return;
+        loadedPvReports.push({
+          submittedAt:    row[idx('Submitted At')] || '',
+          name:           row[idx('Name')] || '',
+          email:          row[idx('Email')] || '',
+          rel:            row[idx('Relation')] || '',
+          employeeEmail:  row[idx('Employee Email')] || null,
+          restaurant:     row[idx('Restaurant')] || '',
+          card:           row[idx('Card')] || '',
+          last4:          row[idx('Last 4')] || '',
+          amount:         row[idx('Amount Spent')] || '0',
+          reimb:          row[idx('Reimb')] || null,
+          venmo:          row[idx('Venmo')] || '',
+          notes:          row[idx('Notes')] || '',
+          receiptUrl:     row[idx('Receipt URL')] || '',
+          ccpostUrl:      row[idx('CC Screenshot URL')] || '',
+          visitDate:      row[idx('Visit Date')] || '',
+          adminStatus:    row[idx('Status')] || 'New',
+          adminNote:      row[idx('Admin Notes')] || '',
+          receiptReceived: row[idx('Receipt Received')] === 'TRUE' || row[idx('Receipt Received')] === true,
+          _sheetRow:      i + 2,
+        });
+      });
+    }
+  } catch(e) { console.error('Failed to load PV Reports tab:', e); }
+
+  // ── Claim Log ──
+  const loadedClaimLog = [];
+  try {
+    const vals = await fetchSheetValues('Claim Log!A:J');
+    if (vals.length > 1) {
+      const h = vals[0]; const idx = k => h.indexOf(k);
+      vals.slice(1).forEach(row => {
+        if (!row[0]) return;
+        loadedClaimLog.push({
+          loggedAt:     row[idx('Logged At')] || '',
+          name:         row[idx('Name')] || '',
+          email:        row[idx('Email')] || '',
+          rel:          row[idx('Relation')] || '',
+          restaurant:   row[idx('Restaurant')] || '',
+          address:      row[idx('Address')] || '',
+          city:         row[idx('City')] || '',
+          card:         row[idx('Card')] || '',
+          reimb:        parseFloat(row[idx('Reimb')]) || 0,
+          restaurantId: parseInt(row[idx('Restaurant ID')]) || 0,
+        });
+      });
+    }
+  } catch(e) { console.error('Failed to load Claim Log tab:', e); }
+
+  return { claimsMap, pvReports: loadedPvReports, claimLog: loadedClaimLog };
 }
 
 async function notifySaveFailure(reason) {
   try {
-    const claimedSpots = spots.filter(s =>
-      Object.values(s.cardSlots).some(slot => slot.status !== 'Open')
-    ).map(s => {
-      return Object.entries(s.cardSlots)
-        .filter(([, slot]) => slot.status !== 'Open')
-        .map(([card, slot]) => `${s.name} (${card}) — ${slot.status}${slot.claimant ? ' by ' + slot.claimant.name + ' <' + slot.claimant.email + '>' : ''}`)
-        .join('\n');
-    }).filter(Boolean).join('\n');
-
+    emailjs.init(CONFIG.EMAILJS_PUBLIC);
     await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
       to_email: CONFIG.ADMIN_EMAIL,
       claimant_name: '🚨 ACTION REQUIRED — Seated Visits System Alert',
       claimant_email: 'system-alert (do not reply)',
-      restaurant: '⚠️ GitHub Save FAILED — A claim may not have saved',
+      restaurant: '⚠️ Sheets Save FAILED — A claim may not have saved',
       address: `Error detail: ${reason}`,
-      cards: 'See below',
-      card_reminder: `A claim was submitted but FAILED to save. The claim may be lost.\n\nActive claims at time of failure:\n\n${claimedSpots || 'Could not retrieve claim list'}`,
-      deadline_note: 'Log into the app immediately and verify all claims are correct.',
+      cards: 'See the Claim Log tab in the Google Sheet to verify.',
+      card_reminder: 'Check the Claims and Claim Log tabs immediately.',
+      deadline_note: 'Verify all claims are correct in the Google Sheet.',
     }, CONFIG.EMAILJS_PUBLIC);
   } catch(e) { console.error('Failed to send save failure notification:', e); }
-}
-
-async function saveToBin() {
-  // Re-fetch latest from GitHub before saving to prevent race conditions.
-  // Merge at slot level — never downgrade a live claim to Open.
-  let mergedSpots, mergedPvReports, mergedClaimLog;
-  let currentSha = null;
-  try {
-    const freshRes = await fetch(githubDataUrl(), { headers: ghHeaders() });
-    if (!freshRes.ok) throw new Error(`GitHub read failed: ${freshRes.status}`);
-    const freshFile = await freshRes.json();
-    currentSha = freshFile.sha;
-    const live = ghDecode(freshFile.content);
-
-    const liveSpotMap = {};
-    (live.spots || []).forEach(s => { liveSpotMap[s.id] = s; });
-
-    const ourSpotsData = spots
-      .filter(s => Object.values(s.cardSlots).some(slot => slot.status !== 'Open'))
-      .map(s => ({ id: s.id, cardSlots: s.cardSlots }));
-
-    const mergedSpotMap = { ...liveSpotMap };
-    ourSpotsData.forEach(ourSpot => {
-      const live = liveSpotMap[ourSpot.id];
-      if (!live) { mergedSpotMap[ourSpot.id] = ourSpot; return; }
-      const mergedSlots = { ...live.cardSlots };
-      Object.entries(ourSpot.cardSlots).forEach(([card, ourSlot]) => {
-        const liveSlot = live.cardSlots?.[card];
-        const liveActive = liveSlot && liveSlot.status !== 'Open';
-        const ourActive  = ourSlot.status !== 'Open';
-        if (ourActive)       mergedSlots[card] = ourSlot;
-        else if (liveActive) mergedSlots[card] = liveSlot;
-        else                 mergedSlots[card] = ourSlot;
-      });
-      Object.entries(live.cardSlots || {}).forEach(([card, liveSlot]) => {
-        if (!(card in ourSpot.cardSlots) && liveSlot.status !== 'Open') mergedSlots[card] = liveSlot;
-      });
-      mergedSpotMap[ourSpot.id] = { id: ourSpot.id, cardSlots: mergedSlots };
-    });
-    Object.keys(mergedSpotMap).forEach(id => {
-      if (Object.values(mergedSpotMap[id].cardSlots).every(s => s.status === 'Open')) delete mergedSpotMap[id];
-    });
-    mergedSpots = Object.values(mergedSpotMap);
-
-    const pvKey = r => `${r.submittedAt}|${r.email}|${r.restaurant}`;
-    const pvSeen = new Set((live.pvReports || []).map(pvKey));
-    mergedPvReports = [...(live.pvReports || [])];
-    pvReports.forEach(r => { if (!pvSeen.has(pvKey(r))) mergedPvReports.push(r); });
-
-    const logKey = e => `${e.loggedAt}|${e.email}|${e.card}|${e.restaurantId}`;
-    const logSeen = new Set((live.claimLog || []).map(logKey));
-    mergedClaimLog = [...(live.claimLog || [])];
-    claimLog.forEach(e => { if (!logSeen.has(logKey(e))) mergedClaimLog.push(e); });
-
-  } catch(e) {
-    mergedSpots = spots
-      .filter(s => Object.values(s.cardSlots).some(slot => slot.status !== 'Open'))
-      .map(s => ({ id: s.id, cardSlots: s.cardSlots }));
-    mergedPvReports = pvReports;
-    mergedClaimLog = claimLog;
-  }
-
-  try {
-    if (!currentSha) throw new Error('Could not read current file SHA — aborting to prevent data loss.');
-    const payload = { spots: mergedSpots, pvReports: mergedPvReports, claimLog: mergedClaimLog };
-    const res = await fetch(githubDataUrl(), {
-      method: 'PUT',
-      headers: ghHeaders(true),
-      body: JSON.stringify({ message: 'Update data', content: ghEncode(payload), sha: currentSha })
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      console.error('GitHub save failed:', res.status, err);
-      alert(`⚠️ Warning: claim was submitted but failed to save (${res.status}). Please contact Olivia immediately.`);
-      await notifySaveFailure(`HTTP ${res.status}: ${err}`);
-    }
-  } catch(e) {
-    console.error('GitHub save error:', e);
-    alert('⚠️ Warning: claim was submitted but failed to save. Please contact Olivia immediately.');
-    await notifySaveFailure(`Network error: ${e.message}`);
-  }
 }
 
 let map = null;
@@ -920,85 +939,26 @@ function renderMap() {
 
 async function loadSpots() {
   await loadRestaurantsFromSheet();
-  const record = await loadFromBin();
-  const savedSpots = record.spots || [];
-  savedSpotsRaw = savedSpots;
-  pvReports = record.pvReports || [];
-  claimLog = record.claimLog || [];
-
-  // Check for claims affected by sheet changes — notify admin
-  const removedClaims = [];    // restaurant removed entirely
-  const droppedCardClaims = []; // restaurant still exists but card no longer needed
-
-  savedSpots.forEach(saved => {
-    const current = RESTAURANTS.find(r => r.id === saved.id);
-    if (!current && saved.cardSlots) {
-      // Restaurant removed entirely
-      Object.entries(saved.cardSlots).forEach(([card, slot]) => {
-        if (slot.status !== 'Open' && slot.claimant) {
-          removedClaims.push({ restaurantId: saved.id, card, claimant: slot.claimant, status: slot.status });
-        }
-      });
-    } else if (current && saved.cardSlots) {
-      // Restaurant still exists — check if any claimed cards were dropped
-      Object.entries(saved.cardSlots).forEach(([card, slot]) => {
-        if (slot.status !== 'Open' && slot.claimant && !current.cards.includes(card)) {
-          droppedCardClaims.push({ restaurantName: current.name, restaurantId: saved.id, card, claimant: slot.claimant, status: slot.status });
-        }
-      });
-    }
-  });
-
-  const allAffected = [...removedClaims, ...droppedCardClaims];
-  if (allAffected.length > 0) {
-    const details = [
-      ...removedClaims.map(c => `RESTAURANT REMOVED — ID ${c.restaurantId} | ${c.card} | ${c.claimant.name} (${c.claimant.email}) | was ${c.status}`),
-      ...droppedCardClaims.map(c => `CARD DROPPED — ${c.restaurantName} | ${c.card} no longer needed | ${c.claimant.name} (${c.claimant.email}) | was ${c.status}`)
-    ].join('\n');
-    try {
-      emailjs.init(CONFIG.EMAILJS_PUBLIC);
-      await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
-        to_email: CONFIG.ADMIN_EMAIL,
-        claimant_name: '⚠️ Seated Visits — Sheet Update Alert',
-        claimant_email: 'system-alert (do not reply)',
-        restaurant: `${allAffected.length} claim(s) affected by your sheet update`,
-        address: 'The following claimants need to be notified manually:',
-        cards: details,
-        card_reminder: details,
-        deadline_note: 'Review the affected claims above and reach out to each claimant to let them know their spot was removed or changed.',
-      }, CONFIG.EMAILJS_PUBLIC);
-    } catch(e) { console.error('Failed to send affected claims alert:', e); }
-  }
+  const { claimsMap, pvReports: pv, claimLog: cl } = await loadAllDataFromSheets();
+  pvReports = pv;
+  claimLog = cl;
 
   spots = RESTAURANTS.map(r => {
-    // Match by ID first, then fall back to name+address in case Business ID changed between uploads
-    const s = savedSpots.find(x => x.id === r.id) ||
-              savedSpots.find(x => {
-                const c = Object.values(x.cardSlots || {}).find(slot => slot.claimant && slot.claimant.restaurantName);
-                return c && c.claimant.restaurantName === r.name && c.claimant.restaurantAddr === r.addr;
-              });
     const cardSlots = {};
     r.cards.forEach(card => {
-      cardSlots[card] = (s && s.cardSlots && s.cardSlots[card])
-        ? s.cardSlots[card]
+      cardSlots[card] = (claimsMap[r.id] && claimsMap[r.id][card])
+        ? claimsMap[r.id][card]
         : { status: 'Open', claimant: null };
     });
-    // Preserve any active claims on cards that were dropped from the sheet
-    // so they aren't silently erased on the next save
-    if (s && s.cardSlots) {
-      Object.entries(s.cardSlots).forEach(([card, slot]) => {
-        if (!cardSlots[card] && slot.status !== 'Open' && slot.claimant) {
-          cardSlots[card] = slot;
-        }
+    // Preserve claims on cards that were dropped from the Restaurants sheet
+    if (claimsMap[r.id]) {
+      Object.entries(claimsMap[r.id]).forEach(([card, slot]) => {
+        if (!cardSlots[card]) cardSlots[card] = slot;
       });
     }
     return { ...r, cardSlots };
   });
 
-  // Orphaned claims (spots in JSONBin but not in sheet) are visible in the Audit Log
-  // and admin post-visit panel via claimLog/pvReports — no need to inject into spots.
-
-  // Auto-expiry removed — only admin can clear claims manually.
   renderBrowse();
   renderMap();
   renderAdmin();
@@ -1010,12 +970,8 @@ async function loadSpots() {
   renderClaimLog();
 }
 
-async function loadPvReports() {
-  renderPvReports();
-}
-
 async function savePvReports() {
-  await saveToBin();
+  // No-op: pvReport writes go directly to the PV Reports sheet tab via submitPvReport().
 }
 
 let claimLogSortAsc = false; // default: newest first
@@ -1142,7 +1098,7 @@ function renderPvReports() {
 }
 
 async function saveSpots() {
-  await saveToBin();
+  // No-op: claim writes go directly to the Claims sheet tab.
 }
 
 function cardBadge(c) {
@@ -1282,24 +1238,33 @@ async function submitClaim() {
   const slot = s.cardSlots[selectedCard];
   if (slot.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
 
-  // Fresh read from JSONBin before saving to prevent race condition double-claims
+  // Re-read Claims tab to prevent race condition double-claims
   try {
-    const freshRecord = await loadFromBin();
-    const freshSpot = (freshRecord.spots || []).find(x => x.id === selectedId);
-    const freshSlot = freshSpot && freshSpot.cardSlots && freshSpot.cardSlots[selectedCard];
+    const freshClaimsMap = await loadAllDataFromSheets().then(d => d.claimsMap);
+    const freshSlot = freshClaimsMap[selectedId] && freshClaimsMap[selectedId][selectedCard];
     if (freshSlot && freshSlot.status !== 'Open') {
       alert('Sorry, this spot was just claimed by someone else!');
       await loadSpots();
       return;
     }
-  } catch(e) { /* network error — proceed and let saveToBin handle it */ }
+  } catch(e) { /* network error — proceed */ }
 
   slot.status = 'Claimed';
   const lockedReimb = s.reimb && s.reimb[selectedCard] ? s.reimb[selectedCard] : 0;
   const claimedAt = new Date().toISOString();
   slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt, reimb: lockedReimb, restaurantName: s.name, restaurantAddr: s.addr, restaurantMarket: s.market };
-  claimLog.push({ loggedAt: claimedAt, name, email, rel, restaurant: s.name, address: s.addr, city: s.market, card: selectedCard, reimb: lockedReimb, restaurantId: s.id });
-  await saveSpots();
+
+  // Write to Claims + Claim Log tabs
+  try {
+    await appendToSheet('Claims', [s.id, s.name, s.addr, s.market, selectedCard, 'Claimed', name, email, rel, isFriendFamily ? employeeEmail : '', claimedAt, lockedReimb]);
+    await appendToSheet('Claim Log', [claimedAt, name, email, rel, s.name, s.addr, s.market, selectedCard, lockedReimb, s.id]);
+    claimLog.push({ loggedAt: claimedAt, name, email, rel, restaurant: s.name, address: s.addr, city: s.market, card: selectedCard, reimb: lockedReimb, restaurantId: s.id });
+  } catch(e) {
+    console.error('Failed to save claim to sheet:', e);
+    alert('⚠️ Claim was submitted but failed to save. Please contact Olivia immediately.');
+    await notifySaveFailure(e.message);
+    return;
+  }
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
     emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
@@ -1411,22 +1376,26 @@ async function manualClaim(id, card) {
   const email = prompt('Claimant email:');
   if (!email) return;
   const s = spots.find(r => r.id === id);
-  s.cardSlots[card] = {
-    status: 'Claimed',
-    claimant: { name, email, rel: 'Employee', employeeEmail: null, claimedAt: new Date().toISOString() }
-  };
-  await saveToBin();
-  renderBrowse();
-  renderMap();
-  renderAdmin();
-  updateStats();
+  const claimedAt = new Date().toISOString();
+  try {
+    await appendToSheet('Claims', [id, s.name, s.addr, s.market, card, 'Claimed', name, email, 'Employee', '', claimedAt, '']);
+    await appendToSheet('Claim Log', [claimedAt, name, email, 'Employee', s.name, s.addr, s.market, card, '', id]);
+  } catch(e) { alert('Failed to save manual claim to sheet: ' + e.message); return; }
+  await loadSpots(); // refresh from sheet to get correct sheetRow
 }
 
 async function setStatus(id, card, status) {
   const s = spots.find(r => r.id === id);
-  s.cardSlots[card].status = status;
-  if (status === 'Open') s.cardSlots[card].claimant = null;
-  await saveSpots();
+  const slot = s.cardSlots[card];
+  const sheetRow = slot._sheetRow;
+  if (sheetRow) {
+    try {
+      await updateSheetCell(`Claims!F${sheetRow}`, status === 'Open' ? '' : status);
+    } catch(e) { alert('Failed to update status in sheet: ' + e.message); return; }
+  }
+  // Update in-memory
+  slot.status = status;
+  if (status === 'Open') { slot.claimant = null; slot._sheetRow = null; }
   renderBrowse();
   renderMap();
   renderAdmin();
@@ -1557,18 +1526,7 @@ function lookupClaims() {
       }
     });
   });
-  // Also check raw JSONBin for claims on restaurants no longer in the sheet
-  savedSpotsRaw.forEach(saved => {
-    if (!saved.cardSlots) return;
-    Object.entries(saved.cardSlots).forEach(([card, slot]) => {
-      const key = `${saved.id}-${card}`;
-      if (matchedIds.has(key)) return;
-      if (['Claimed','Confirmed'].includes(slot?.status) && slot?.claimant?.email?.toLowerCase() === email && slot.claimant.restaurantName) {
-        const ghostSpot = { id: saved.id, name: slot.claimant.restaurantName, addr: slot.claimant.restaurantAddr || '', market: slot.claimant.restaurantMarket || '', cards: [card], cardSlots: { [card]: slot } };
-        matches.push({ spot: ghostSpot, card, claimant: slot.claimant });
-      }
-    });
-  });
+  // Claims on restaurants removed from the sheet are preserved in spots via claimsMap.
 
   if (matches.length === 0) {
     errEl.textContent = 'No outstanding claims found for that email. Make sure you use the same email you claimed with.';
@@ -1666,15 +1624,31 @@ async function submitPostVisit() {
   submitBtn.textContent = 'Submit report';
   submitBtn.disabled = false;
 
-  pvReports.push({
-    name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null,
-    restaurant, visitDate, card, last4, venmo,
-    amount: parseFloat(amount).toFixed(2),
-    notes, receiptUrl, ccpostUrl,
-    submittedAt: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-  });
-
-  await savePvReports();
+  const submittedAt = new Date().toISOString();
+  try {
+    await appendToSheet('PV Reports', [
+      submittedAt, name, email, rel,
+      isFriendFamily ? employeeEmail : '',
+      restaurant, card, last4,
+      parseFloat(amount).toFixed(2),
+      '', // Reimb — Olivia fills in
+      venmo || '', notes || '',
+      receiptUrl || '', ccpostUrl || '',
+      visitDate || '',
+      'New', '', '' // Status, Admin Notes, Receipt Received
+    ]);
+    pvReports.push({
+      submittedAt, name, email, rel,
+      employeeEmail: isFriendFamily ? employeeEmail : null,
+      restaurant, visitDate, card, last4, venmo,
+      amount: parseFloat(amount).toFixed(2),
+      notes, receiptUrl, ccpostUrl,
+      adminStatus: 'New', adminNote: '', receiptReceived: false,
+    });
+  } catch(e) {
+    console.error('Failed to save PV report to sheet:', e);
+    alert('⚠️ Report submitted but failed to save to the sheet. Please contact Olivia.');
+  }
   renderPvReports();
 
   // Send summary emails
@@ -1707,29 +1681,28 @@ async function submitPostVisit() {
 
 async function updatePvReceipt(idx, value) {
   pvReports[idx].receiptReceived = value;
-  await savePvReports();
+  const row = pvReports[idx]._sheetRow;
+  if (row) { try { await updateSheetCell(`PV Reports!R${row}`, value ? 'TRUE' : 'FALSE'); } catch(e) { console.error(e); } }
 }
 
 async function updatePvStatus(idx, value) {
   pvReports[idx].adminStatus = value;
-  await savePvReports();
+  const row = pvReports[idx]._sheetRow;
+  if (row) { try { await updateSheetCell(`PV Reports!P${row}`, value); } catch(e) { console.error(e); } }
   // Voided: release the corresponding claim slot back to Open
   if (value === 'Voided') {
     const report = pvReports[idx];
     const spot = spots.find(s => s.name === report.restaurant);
     if (spot && report.card && spot.cardSlots[report.card]) {
-      spot.cardSlots[report.card].status = 'Open';
-      spot.cardSlots[report.card].claimant = null;
-      await saveSpots();
-      renderBrowse();
-      renderStats();
+      await setStatus(spot.id, report.card, 'Open');
     }
   }
 }
 
 async function updatePvNote(idx, value) {
   pvReports[idx].adminNote = value;
-  await savePvReports();
+  const row = pvReports[idx]._sheetRow;
+  if (row) { try { await updateSheetCell(`PV Reports!Q${row}`, value); } catch(e) { console.error(e); } }
 }
 
 function switchTab(tab) {
