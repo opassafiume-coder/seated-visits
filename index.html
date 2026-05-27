@@ -1908,35 +1908,38 @@ async function syncMidExport(btn) {
     // Ensure MID Export tab exists
     const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties.title`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
     const meta = await metaRes.json();
-    const existing = (meta.sheets || []).map(s => s.properties.title);
-    if (!existing.includes('MID Export')) {
+    const existingTabs = (meta.sheets || []).map(s => s.properties.title);
+    if (!existingTabs.includes('MID Export')) {
       await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'MID Export' } } }] })
       });
+      // Write header row to new tab
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A1')}?valueInputOption=RAW`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ range: 'MID Export!A1', values: [['Submitted By (Agent Name)', 'Business Name', 'Business ID', 'Network Transaction Amount', 'Transaction Date', 'Added to MID Recovery ✓']] })
+      });
     }
-    // Clear the entire tab
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/MID%20Export:clear`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
-    });
-    // Build rows — skip already-exported ones
-    const headers = ['Submitted By (Agent Name)', 'Business Name', 'Business ID', 'Network Transaction Amount', 'Transaction Date'];
-    const toExport = pvReports.filter(r => !r.midExported);
-    const rows = toExport.map(r => {
+    // Read existing rows to avoid duplicates (key = name + restaurant)
+    const existingVals = await fetchSheetValues('MID Export!A:B');
+    const existingKeys = new Set((existingVals || []).slice(1).map(r => `${r[0]}|${r[1]}`));
+    // Build only new rows
+    const toExport = pvReports.filter(r => !r.midExported && !existingKeys.has(`${r.name}|${r.restaurant}`));
+    const newRows = toExport.map(r => {
       const spot = spots.find(s => s.name === r.restaurant);
-      return [r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', r.visitDate || ''];
+      return [r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', r.visitDate || '', ''];
     });
-    // Write all at once starting at A1
-    const range = encodeURIComponent('MID Export!A1');
-    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?valueInputOption=RAW`, {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ range: 'MID Export!A1', values: [headers, ...rows] })
-    });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || res.status); }
-    btn.textContent = `✅ Synced (${rows.length} pending)`;
+    if (newRows.length > 0) {
+      const appendRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A:F')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: newRows })
+      });
+      if (!appendRes.ok) { const err = await appendRes.json(); throw new Error(err.error?.message || appendRes.status); }
+    }
+    btn.textContent = newRows.length > 0 ? `✅ Added ${newRows.length} new row${newRows.length > 1 ? 's' : ''}` : '✅ Already up to date';
     setTimeout(() => { btn.textContent = '↗ Sync MID Export'; btn.disabled = false; }, 3000);
   } catch(e) {
     alert('MID Export failed: ' + e.message);
