@@ -1920,50 +1920,62 @@ async function syncMidExport(btn) {
   try {
     // Ensure token is fresh
     try { accessToken = await refreshAccessToken(); } catch(e) { /* use existing */ }
-    // Get Master Tracker sheet metadata to find numeric sheetId for col J checkbox validation
-    const metaRes = await midFetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}?fields=sheets.properties`);
-    const meta = await metaRes.json();
-    const midSheet = (meta.sheets || []).find(s => s.properties.title === MID_TAB);
-    const midSheetNumId = midSheet?.properties.sheetId;
 
-    // Apply checkbox validation to col J (index 9) if we have the sheet ID
-    if (midSheetNumId != null) {
-      await midFetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}:batchUpdate`, {
+    // Get seated-visits sheet metadata to find/create MID Export tab
+    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+    const meta = await metaRes.json();
+    const existingTabs = (meta.sheets || []).map(s => s.properties.title);
+    let midSheetNumId = (meta.sheets || []).find(s => s.properties.title === 'MID Export')?.properties.sheetId;
+
+    if (!existingTabs.includes('MID Export')) {
+      // Create tab and write header
+      const createRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [{
-          setDataValidation: {
-            range: { sheetId: midSheetNumId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 9, endColumnIndex: 10 },
-            rule: { condition: { type: 'BOOLEAN' }, strict: true, showCustomUi: true }
-          }
-        }] })
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'MID Export' } } }] })
+      });
+      const createJson = await createRes.json();
+      midSheetNumId = createJson.replies[0].addSheet.properties.sheetId;
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A1')}?valueInputOption=RAW`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ range: 'MID Export!A1', values: [['Submitted By (Agent Name)', 'Business Name', 'Business ID', 'Network Transaction Amount', 'Transaction Date', 'Added to MID Recovery']] })
       });
     }
 
-    // Read col D (Business Name) of Master Tracker to avoid duplicates
-    const tabEncoded = encodeURIComponent(`${MID_TAB}!D:D`);
-    const existingVals = await midFetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}/values/${tabEncoded}`);
-    const existingJson = await existingVals.json();
-    const existingNames = new Set((existingJson.values || []).slice(1).map(r => (r[0] || '').toLowerCase()));
+    // Apply native checkbox validation to col F (index 5)
+    if (midSheetNumId != null) {
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: [{ setDataValidation: {
+          range: { sheetId: midSheetNumId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 5, endColumnIndex: 6 },
+          rule: { condition: { type: 'BOOLEAN' }, strict: true, showCustomUi: true }
+        }}] })
+      });
+    }
 
-    // Build new rows — cols A-J, data in C(2),D(3),E(4),F(5),I(8), checkbox in J(9)
+    // Read existing rows to avoid duplicates (by restaurant name)
+    const existingVals = await fetchSheetValues('MID Export!D:D');
+    const existingNames = new Set((existingVals || []).slice(1).map(r => (r[0] || '').toLowerCase()));
+
+    // Only append rows not already in the tab
     const toExport = pvReports.filter(r => !r.midExported && !existingNames.has((r.restaurant || '').toLowerCase()));
     const newRows = toExport.map(r => {
       const spot = spots.find(s => s.name === r.restaurant);
-      return ['', '', r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', '', '', r.visitDate || '', false];
+      return [r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', r.visitDate || '', false];
     });
 
     if (newRows.length > 0) {
-      const appendRange = encodeURIComponent(`${MID_TAB}!A:J`);
-      const appendRes = await midFetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}/values/${appendRange}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+      const appendRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A:F')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ values: newRows })
       });
       if (!appendRes.ok) { const err = await appendRes.json(); throw new Error(err.error?.message || appendRes.status); }
     }
 
-    btn.textContent = newRows.length > 0 ? `✅ Added ${newRows.length} row${newRows.length > 1 ? 's' : ''} to Master Tracker` : '✅ Already up to date';
+    btn.textContent = newRows.length > 0 ? `✅ Added ${newRows.length} new row${newRows.length > 1 ? 's' : ''}` : '✅ Already up to date';
     setTimeout(() => { btn.textContent = '↗ Sync MID Export'; btn.disabled = false; }, 4000);
   } catch(e) {
     alert('MID Export failed: ' + e.message);
