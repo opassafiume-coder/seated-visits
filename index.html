@@ -1905,23 +1905,43 @@ async function syncMidExport(btn) {
   btn.textContent = 'Syncing…';
   btn.disabled = true;
   try {
-    // Ensure MID Export tab exists
-    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties.title`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+    // Get spreadsheet metadata (tab list + sheet IDs)
+    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
     const meta = await metaRes.json();
     const existingTabs = (meta.sheets || []).map(s => s.properties.title);
+    let midSheetId = (meta.sheets || []).find(s => s.properties.title === 'MID Export')?.properties.sheetId;
+
     if (!existingTabs.includes('MID Export')) {
-      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+      // Create the tab
+      const createRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'MID Export' } } }] })
       });
-      // Write header row to new tab
+      const createJson = await createRes.json();
+      midSheetId = createJson.replies[0].addSheet.properties.sheetId;
+      // Write header row
       await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A1')}?valueInputOption=RAW`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ range: 'MID Export!A1', values: [['Submitted By (Agent Name)', 'Business Name', 'Business ID', 'Network Transaction Amount', 'Transaction Date', 'Added to MID Recovery ✓']] })
+        body: JSON.stringify({ range: 'MID Export!A1', values: [['Submitted By (Agent Name)', 'Business Name', 'Business ID', 'Network Transaction Amount', 'Transaction Date', 'Added to MID Recovery']] })
       });
     }
+
+    // Apply checkbox data validation to col F (index 5), rows 2-1000
+    if (midSheetId != null) {
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: [{
+          setDataValidation: {
+            range: { sheetId: midSheetId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 5, endColumnIndex: 6 },
+            rule: { condition: { type: 'BOOLEAN' }, strict: true, showCustomUi: true }
+          }
+        }] })
+      });
+    }
+
     // Read existing rows to avoid duplicates (key = name + restaurant)
     const existingVals = await fetchSheetValues('MID Export!A:B');
     const existingKeys = new Set((existingVals || []).slice(1).map(r => `${r[0]}|${r[1]}`));
@@ -1929,7 +1949,7 @@ async function syncMidExport(btn) {
     const toExport = pvReports.filter(r => !r.midExported && !existingKeys.has(`${r.name}|${r.restaurant}`));
     const newRows = toExport.map(r => {
       const spot = spots.find(s => s.name === r.restaurant);
-      return [r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', r.visitDate || '', ''];
+      return [r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', r.visitDate || '', false];
     });
     if (newRows.length > 0) {
       const appendRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A:F')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
