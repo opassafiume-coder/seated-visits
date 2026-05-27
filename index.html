@@ -1751,13 +1751,19 @@ async function submitPostVisit() {
   submitBtn.disabled = false;
 
   const submittedAt = new Date().toISOString();
+  // Pull locked reimb from the active claim for this restaurant+card
+  const pvSpot = spots.find(s => s.name === restaurant);
+  const pvSlot = pvSpot && pvSpot.cardSlots[card];
+  const lockedPvReimb = (pvSlot && pvSlot.claimant && pvSlot.claimant.reimb != null)
+    ? pvSlot.claimant.reimb
+    : (pvSpot && pvSpot.reimb && pvSpot.reimb[card] ? pvSpot.reimb[card] : '');
   try {
     await appendToSheet('PV Reports', [
       submittedAt, name, email, rel,
       isFriendFamily ? employeeEmail : '',
       restaurant, card, last4,
       parseFloat(amount).toFixed(2),
-      '', // Reimb — Olivia fills in
+      lockedPvReimb, // Reimb — carried over from claim
       venmo || '', notes || '',
       receiptUrl || '', ccpostUrl || '',
       visitDate || '',
