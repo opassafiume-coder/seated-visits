@@ -759,13 +759,27 @@ async function ensureDataTabs() {
       { title: 'Claim Log',  headers: ['Logged At','Name','Email','Relation','Restaurant','Address','City','Card','Reimb','Restaurant ID'] },
     ];
     const toCreate = tabs.filter(t => !existing.includes(t.title));
-    if (toCreate.length === 0) return;
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests: toCreate.map(t => ({ addSheet: { properties: { title: t.title } } })) })
-    });
-    for (const t of toCreate) await appendToSheet(t.title, t.headers);
+    if (toCreate.length > 0) {
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: toCreate.map(t => ({ addSheet: { properties: { title: t.title } } })) })
+      });
+      for (const t of toCreate) await appendToSheet(t.title, t.headers);
+    }
+    // Patch missing columns on existing tabs
+    for (const t of tabs.filter(t => existing.includes(t.title))) {
+      try {
+        const row1 = await fetchSheetValues(`${t.title}!1:1`);
+        const existingHeaders = (row1[0] || []);
+        for (let i = 0; i < t.headers.length; i++) {
+          if (!existingHeaders[i]) {
+            const col = String.fromCharCode(65 + i);
+            await updateSheetCell(`${t.title}!${col}1`, t.headers[i]);
+          }
+        }
+      } catch(e) { console.error(`Column patch failed for ${t.title}:`, e); }
+    }
   } catch(e) { console.error('ensureDataTabs failed:', e); }
 }
 
