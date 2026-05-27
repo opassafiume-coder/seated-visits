@@ -416,12 +416,13 @@
             <th>Status</th>
             <th>My notes</th>
             <th>Amt Venmo'd</th>
+            <th>Venmo 3% fee</th>
             <th>Date Venmo'd</th>
             <th></th>
           </tr>
         </thead>
         <tbody id="pv-admin-tbody">
-          <tr><td colspan="16" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
+          <tr><td colspan="17" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -762,7 +763,7 @@ async function ensureDataTabs() {
     const existing = (meta.sheets || []).map(s => s.properties.title);
     const tabs = [
       { title: 'Claims',     headers: ['Restaurant ID','Restaurant Name','Address','City','Card','Status','Claimant Name','Claimant Email','Relation','Employee Email','Claimed At','Reimb'] },
-      { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received','Amount Venmod','Date Venmod'] },
+      { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received','Amount Venmod','Date Venmod','Venmo Fee'] },
       { title: 'Claim Log',  headers: ['Logged At','Name','Email','Relation','Restaurant','Address','City','Card','Reimb','Restaurant ID'] },
     ];
     const toCreate = tabs.filter(t => !existing.includes(t.title));
@@ -828,7 +829,7 @@ async function loadAllDataFromSheets() {
   // ── PV Reports ──
   const loadedPvReports = [];
   try {
-    const vals = await fetchSheetValues('PV Reports!A:T');
+    const vals = await fetchSheetValues('PV Reports!A:U');
     if (vals.length > 1) {
       const h = vals[0]; const idx = k => h.indexOf(k);
       vals.slice(1).forEach((row, i) => {
@@ -854,6 +855,7 @@ async function loadAllDataFromSheets() {
           receiptReceived: row[idx('Receipt Received')] === 'TRUE' || row[idx('Receipt Received')] === true,
           amountVenmood:  row[idx('Amount Venmod')] || '',
           dateVenmood:    row[idx('Date Venmod')] || '',
+          venmoFee:       row[idx('Venmo Fee')] || '',
           _sheetRow:      i + 2,
         });
       });
@@ -1096,7 +1098,7 @@ function renderPvReports() {
   );
   const sorted = pvAdminSortAsc ? filtered.slice() : filtered.slice().reverse();
   if (!sorted.length) {
-    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="17" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
     return;
   }
   tbody.innerHTML = sorted.map(r => {
@@ -1138,6 +1140,7 @@ function renderPvReports() {
     </td>
     <td><textarea onblur="updatePvNote(${idx}, this.value)" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:150px;min-height:50px;resize:vertical;">${r.adminNote||''}</textarea></td>
     <td><input type="text" value="${r.amountVenmood||''}" onblur="updatePvAmountVenmood(${idx}, this.value)" placeholder="$0.00" style="font-size:12px;font-family:'DM Mono',monospace;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:80px;" /></td>
+    <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${r.venmoFee ? '$' + r.venmoFee : (r.amountVenmood ? '$' + (parseFloat(r.amountVenmood) * 0.03).toFixed(2) : '—')}</td>
     <td><input type="date" value="${r.dateVenmood||''}" onchange="updatePvDateVenmood(${idx}, this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:130px;" /></td>
     <td><button onclick="deletePvReport(${idx})" style="font-size:12px;padding:4px 8px;border:1px solid #fca5a5;border-radius:6px;background:#fef2f2;color:#dc2626;cursor:pointer;">🗑</button></td>
   </tr>`;
@@ -1434,21 +1437,21 @@ async function manualClaim(id, card) {
 
 // PV Reports columns: Submitted At, Name, Email, Relation, Employee Email, Restaurant, Card, Last 4, Amount Spent, Reimb, Venmo, Notes, Receipt URL, CC Screenshot URL, Visit Date, Status, Admin Notes, Receipt Received
 const HISTORICAL_PV_REPORTS = [
-  ['2026-04-29T03:20:00Z', 'Olivia', 'opassafiume@seatedapp.io', 'Employee', '', 'Cafe Paris', 'Visa', '1234', '20.00', '', 'oliviapassafiume', 'None', 'https://i.ibb.co/pvpWncMX/unnamed-jpg.jpg', 'https://i.ibb.co/rqq4ZHk/unnamed-1-png.png', '2026-04-28', 'New', '', 'FALSE'],
-  ['2026-05-06T18:11:53Z', 'Olivia', 'oliviapassafiume@gmail.com', 'Friend / Family', 'opassafiume@seatedapp.io', "Casa Matilda's", 'Visa', '8765', '50.00', '', 'oliviapassafiume', 'None', 'https://i.ibb.co/9mXWyLWW/IMG-8-B6-CE21-E332-C-1-jpeg.jpg', 'https://i.ibb.co/Lhrc3pfT/IMG-9195-jpg.jpg', '2026-05-06', 'New', '', 'FALSE', '', ''],
-  ['2026-05-06T18:13:40Z', 'Padma', 'prao@seatedapp.io', 'Employee', '', 'GAIA Supperclub', 'Visa', '1234', '50.00', '', 'padmarao', 'None', 'https://i.ibb.co/Lhrc3pfT/IMG-9195-jpg.jpg', 'https://i.ibb.co/pBpwMB2q/IMG-9193-jpg.jpg', '2026-05-06', 'New', '', 'FALSE', '', ''],
-  ['2026-05-12T17:39:57Z', 'Olivia Passafiume', 'opassafiume@seatedapp.io', 'Employee', '', 'Cafe Paris', 'Visa', '1234', '1234.00', '', 'OliviaPassafiume', 'None', 'https://i.ibb.co/VYkPYk3g/Frankli-page-5-jpg.jpg', 'https://i.ibb.co/Tx0B0Zf3/Frankli-page-6-jpg.jpg', '2026-05-19', 'New', '', 'FALSE', '', ''],
-  ['2026-05-20T16:16:10Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', 'DIG On 4th', 'Visa', '0128', '31.02', '', 'Not provided', 'None', 'https://i.ibb.co/pvpWncMX/unnamed-jpg.jpg', 'https://i.ibb.co/rqq4ZHk/unnamed-1-png.png', '2026-05-20', "Venmo'd", '', 'FALSE', '', ''],
-  ['2026-05-21T12:47:33Z', 'Christopher Anthony', 'canthony@seatedapp.io', 'Employee', '', 'Nar Restaurant', 'Amex', '8005', '42.27', '43', '@skip2my_chris', 'Might have an issue with Venmo- waiting to hear back from venmo support. If you can please hold off for now.', 'https://i.ibb.co/7Ng6HnCd/Image-from-i-OS-1-jpg.jpg', 'https://i.ibb.co/HDgY7d1L/Image-from-i-OS-3-jpg.jpg', '2026-05-20', 'New', '', 'FALSE', '', ''],
-  ['2026-05-21T12:49:55Z', 'Christopher Anthony', 'canthony@seatedapp.io', 'Employee', '', 'Comal', 'Amex', '8005', '63.08', '40', '@skip2my_chris', 'Might have an issue with Venmo- waiting to hear back from venmo support. If you can please hold off for now.', 'https://i.ibb.co/zTjsLBJb/Image-from-i-OS-2-jpg.jpg', 'https://i.ibb.co/bjLPqFGn/Image-from-i-OS-4-jpg.jpg', '2026-05-20', 'New', '', 'FALSE', '', ''],
-  ['2026-05-21T21:53:53Z', 'Erick Orozco', 'eorozco@seatedapp.io', 'Employee', '', 'Chelsea Living Room', 'Visa', '7802', '140.04', '100', '@ErickOrozco', 'Submitting before the 48hr deadline. Credit card final amount has not posted.', 'https://i.ibb.co/cMFVpyz/IMG-5284-png.png', 'https://i.ibb.co/xKSVZqhX/IMG-5295-png.png', '2026-05-20', 'New', '', 'FALSE', '', ''],
-  ['2026-05-22T03:27:01Z', 'Zhaoyang Chen', 'jchen@seatedapp.io', 'Employee', '', 'Mido - Omakase Room', 'Amex', '6711', '453.63', '84', 'zhaoyangdd', 'no particular issues, food is amazing!', 'https://i.ibb.co/Rk6j2JRv/IMG-3022-HEIC.jpg', 'https://i.ibb.co/QF4mNhjy/Screenshot-2026-05-21-at-23-24-51-png.png', '2026-05-20', "Venmo'd", '', 'FALSE', '', ''],
-  ['2026-05-22T13:53:47Z', 'Zhaoyang Chen', 'jchen@seatedapp.io', 'Employee', '', 'Happy Tuna Broome Street', 'Amex', '6711', '46.27', '40', '@zhaoyangdd', 'hella expensive fast food sushi!! they need us', 'https://i.ibb.co/1YF1fs1H/IMG-3024-HEIC.jpg', 'https://i.ibb.co/HL0JFMh6/Screenshot-2026-05-22-at-09-53-11-png.png', '2026-05-21', 'New', '', 'FALSE', '', ''],
-  ['2026-05-22T15:00:08Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', 'The High Note', 'Visa', '0128', '106.99', '86', '@michael-fiore1', 'No issues.', 'https://i.ibb.co/p6CDyxV8/High-Note-jpg.jpg', 'https://i.ibb.co/Z1Ydx4Fn/Highnote-2-png.png', '2026-05-20', 'New', '', 'FALSE', '', ''],
-  ['2026-05-22T15:03:28Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', "The Butcher's Daughter - Williamsburg", 'Visa', '0128', '77.58', '40', '@michael-fiore1', 'n/a', 'https://i.ibb.co/TDdG4Ttf/Butchers-Daughter-png.png', 'https://i.ibb.co/RT8JCtmr/IMG-4491-PNG.png', '2026-05-21', 'New', '', 'FALSE', '', ''],
-  ['2026-05-22T15:06:28Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', 'Carta', 'Visa', '0128', '31.95', '32', '@michael-fiore1', 'na', 'https://i.ibb.co/bj9gJYV3/Carta-png.png', 'https://i.ibb.co/4wPgZF7K/IMG-4492-PNG.png', '2026-05-21', 'New', '', 'FALSE', '', ''],
-  ['2026-05-22T15:09:59Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', "Jameson's Bar And Restaurant", 'Amex', '0128', '32.94', '34', '@michael-fiore1', 'NA', 'https://i.ibb.co/rWDM9ZJ/Jameson-s-jpg.jpg', 'https://i.ibb.co/bgd4wngX/unnamed-1-png.png', '2026-05-21', 'New', '', 'FALSE', '', ''],
-  ['2026-05-26T12:50:45Z', 'Christopher Anthony', 'canthony@seatedapp.io', 'Employee', '', 'LeCiel', 'Amex', '8005', '20.94', '22', '@skip2my_chris', 'Hold off on Venmo- still waiting for the support to clear and open the account..', 'https://i.ibb.co/HfDrK3G4/Image-from-i-OS-5-jpg.jpg', 'https://i.ibb.co/gZLDt9pY/Screenshot-2026-05-26-at-8-32-08-AM-png.png', '2026-05-21', 'New', '', 'FALSE', '', ''],
+  ['2026-04-29T03:20:00Z', 'Olivia', 'opassafiume@seatedapp.io', 'Employee', '', 'Cafe Paris', 'Visa', '1234', '20.00', '', 'oliviapassafiume', 'None', 'https://i.ibb.co/pvpWncMX/unnamed-jpg.jpg', 'https://i.ibb.co/rqq4ZHk/unnamed-1-png.png', '2026-04-28', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-06T18:11:53Z', 'Olivia', 'oliviapassafiume@gmail.com', 'Friend / Family', 'opassafiume@seatedapp.io', "Casa Matilda's", 'Visa', '8765', '50.00', '', 'oliviapassafiume', 'None', 'https://i.ibb.co/9mXWyLWW/IMG-8-B6-CE21-E332-C-1-jpeg.jpg', 'https://i.ibb.co/Lhrc3pfT/IMG-9195-jpg.jpg', '2026-05-06', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-06T18:13:40Z', 'Padma', 'prao@seatedapp.io', 'Employee', '', 'GAIA Supperclub', 'Visa', '1234', '50.00', '', 'padmarao', 'None', 'https://i.ibb.co/Lhrc3pfT/IMG-9195-jpg.jpg', 'https://i.ibb.co/pBpwMB2q/IMG-9193-jpg.jpg', '2026-05-06', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-12T17:39:57Z', 'Olivia Passafiume', 'opassafiume@seatedapp.io', 'Employee', '', 'Cafe Paris', 'Visa', '1234', '1234.00', '', 'OliviaPassafiume', 'None', 'https://i.ibb.co/VYkPYk3g/Frankli-page-5-jpg.jpg', 'https://i.ibb.co/Tx0B0Zf3/Frankli-page-6-jpg.jpg', '2026-05-19', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-20T16:16:10Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', 'DIG On 4th', 'Visa', '0128', '31.02', '', 'Not provided', 'None', 'https://i.ibb.co/pvpWncMX/unnamed-jpg.jpg', 'https://i.ibb.co/rqq4ZHk/unnamed-1-png.png', '2026-05-20', "Venmo'd", '', 'FALSE', '', '', ''],
+  ['2026-05-21T12:47:33Z', 'Christopher Anthony', 'canthony@seatedapp.io', 'Employee', '', 'Nar Restaurant', 'Amex', '8005', '42.27', '43', '@skip2my_chris', 'Might have an issue with Venmo- waiting to hear back from venmo support. If you can please hold off for now.', 'https://i.ibb.co/7Ng6HnCd/Image-from-i-OS-1-jpg.jpg', 'https://i.ibb.co/HDgY7d1L/Image-from-i-OS-3-jpg.jpg', '2026-05-20', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-21T12:49:55Z', 'Christopher Anthony', 'canthony@seatedapp.io', 'Employee', '', 'Comal', 'Amex', '8005', '63.08', '40', '@skip2my_chris', 'Might have an issue with Venmo- waiting to hear back from venmo support. If you can please hold off for now.', 'https://i.ibb.co/zTjsLBJb/Image-from-i-OS-2-jpg.jpg', 'https://i.ibb.co/bjLPqFGn/Image-from-i-OS-4-jpg.jpg', '2026-05-20', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-21T21:53:53Z', 'Erick Orozco', 'eorozco@seatedapp.io', 'Employee', '', 'Chelsea Living Room', 'Visa', '7802', '140.04', '100', '@ErickOrozco', 'Submitting before the 48hr deadline. Credit card final amount has not posted.', 'https://i.ibb.co/cMFVpyz/IMG-5284-png.png', 'https://i.ibb.co/xKSVZqhX/IMG-5295-png.png', '2026-05-20', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-22T03:27:01Z', 'Zhaoyang Chen', 'jchen@seatedapp.io', 'Employee', '', 'Mido - Omakase Room', 'Amex', '6711', '453.63', '84', 'zhaoyangdd', 'no particular issues, food is amazing!', 'https://i.ibb.co/Rk6j2JRv/IMG-3022-HEIC.jpg', 'https://i.ibb.co/QF4mNhjy/Screenshot-2026-05-21-at-23-24-51-png.png', '2026-05-20', "Venmo'd", '', 'FALSE', '', '', ''],
+  ['2026-05-22T13:53:47Z', 'Zhaoyang Chen', 'jchen@seatedapp.io', 'Employee', '', 'Happy Tuna Broome Street', 'Amex', '6711', '46.27', '40', '@zhaoyangdd', 'hella expensive fast food sushi!! they need us', 'https://i.ibb.co/1YF1fs1H/IMG-3024-HEIC.jpg', 'https://i.ibb.co/HL0JFMh6/Screenshot-2026-05-22-at-09-53-11-png.png', '2026-05-21', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-22T15:00:08Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', 'The High Note', 'Visa', '0128', '106.99', '86', '@michael-fiore1', 'No issues.', 'https://i.ibb.co/p6CDyxV8/High-Note-jpg.jpg', 'https://i.ibb.co/Z1Ydx4Fn/Highnote-2-png.png', '2026-05-20', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-22T15:03:28Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', "The Butcher's Daughter - Williamsburg", 'Visa', '0128', '77.58', '40', '@michael-fiore1', 'n/a', 'https://i.ibb.co/TDdG4Ttf/Butchers-Daughter-png.png', 'https://i.ibb.co/RT8JCtmr/IMG-4491-PNG.png', '2026-05-21', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-22T15:06:28Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', 'Carta', 'Visa', '0128', '31.95', '32', '@michael-fiore1', 'na', 'https://i.ibb.co/bj9gJYV3/Carta-png.png', 'https://i.ibb.co/4wPgZF7K/IMG-4492-PNG.png', '2026-05-21', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-22T15:09:59Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', "Jameson's Bar And Restaurant", 'Amex', '0128', '32.94', '34', '@michael-fiore1', 'NA', 'https://i.ibb.co/rWDM9ZJ/Jameson-s-jpg.jpg', 'https://i.ibb.co/bgd4wngX/unnamed-1-png.png', '2026-05-21', 'New', '', 'FALSE', '', '', ''],
+  ['2026-05-26T12:50:45Z', 'Christopher Anthony', 'canthony@seatedapp.io', 'Employee', '', 'LeCiel', 'Amex', '8005', '20.94', '22', '@skip2my_chris', 'Hold off on Venmo- still waiting for the support to clear and open the account..', 'https://i.ibb.co/HfDrK3G4/Image-from-i-OS-5-jpg.jpg', 'https://i.ibb.co/gZLDt9pY/Screenshot-2026-05-26-at-8-32-08-AM-png.png', '2026-05-21', 'New', '', 'FALSE', '', '', ''],
 ];
 
 async function restoreHistoricalPvReports() {
@@ -1787,7 +1790,7 @@ async function submitPostVisit() {
       venmo || '', notes || '',
       receiptUrl || '', ccpostUrl || '',
       visitDate || '',
-      'New', '', '', '', '' // Status, Admin Notes, Receipt Received, Amount Venmod, Date Venmod
+      'New', '', '', '', '', '' // Status, Admin Notes, Receipt Received, Amount Venmod, Date Venmod, Venmo Fee
     ]);
     pvReports.push({
       submittedAt, name, email, rel,
@@ -1889,7 +1892,13 @@ async function deletePvReport(idx) {
 async function updatePvAmountVenmood(idx, value) {
   pvReports[idx].amountVenmood = value;
   const row = pvReports[idx]._sheetRow;
-  if (row) { try { await updateSheetCell(`PV Reports!S${row}`, value); } catch(e) { console.error(e); } }
+  if (row) {
+    try { await updateSheetCell(`PV Reports!S${row}`, value); } catch(e) { console.error(e); }
+    const fee = value && parseFloat(value) ? (parseFloat(value) * 0.03).toFixed(2) : '';
+    pvReports[idx].venmoFee = fee;
+    try { await updateSheetCell(`PV Reports!U${row}`, fee); } catch(e) { console.error(e); }
+    renderPvReports();
+  }
 }
 
 async function updatePvDateVenmood(idx, value) {
