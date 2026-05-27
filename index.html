@@ -793,7 +793,7 @@ async function loadAllDataFromSheets() {
               rel: row[idx('Relation')] || '',
               employeeEmail: row[idx('Employee Email')] || null,
               claimedAt: row[idx('Claimed At')] || '',
-              reimb: parseFloat(row[idx('Reimb')]) || 0,
+              reimb: row[idx('Reimb')] !== '' && row[idx('Reimb')] != null ? parseFloat(row[idx('Reimb')]) : null,
               restaurantName: row[idx('Restaurant Name')] || '',
               restaurantAddr: row[idx('Address')] || '',
               restaurantMarket: row[idx('City')] || ''
@@ -1373,7 +1373,7 @@ function renderAdmin() {
       <td>${cardBadge(card)}</td>
       <td>${statusBadge(slot.status)}</td>
       <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div>${c.employeeEmail ? `<div style="color:var(--text-3);margin-top:1px;">Employee: ${c.employeeEmail}</div>` : ''}<div style="color:var(--text-3);margin-top:1px;">${c.rel}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
-      <td style="font-size:13px;font-weight:600;color:#1A5C36;">${c && c.reimb ? `$${c.reimb}` : (s.reimb && s.reimb[card] ? `$${s.reimb[card]}` : '—')}</td>
+      <td style="font-size:13px;font-weight:600;color:#1A5C36;">${(() => { const locked = c && c.reimb != null ? c.reimb : (s.reimb && s.reimb[card] ? s.reimb[card] : null); if (locked != null && c && c.reimb == null && slot._sheetRow) { updateSheetCell(`Claims!L${slot._sheetRow}`, String(locked)); c.reimb = locked; } return locked != null ? `$${locked}` : '—'; })()}</td>
       <td style="text-align:center;font-size:16px;">${pvReports.some(r => r.restaurant === s.name && r.card === card) ? '✅' : ''}</td>
       <td>
         ${slot.status === 'Open' ? `<button class="action-btn" onclick="manualClaim(${s.id},'${card}')">Manual claim</button>` : ''}
