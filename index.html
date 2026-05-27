@@ -1903,21 +1903,34 @@ async function updatePvMidExported(idx, checked) {
   if (row) { try { await updateSheetCell(`PV Reports!V${row}`, checked ? 'TRUE' : ''); } catch(e) { console.error(e); } }
 }
 
+async function midFetch(url, options = {}) {
+  options.headers = { ...options.headers, 'Authorization': `Bearer ${accessToken}` };
+  let res = await fetch(url, options);
+  if (res.status === 401) {
+    accessToken = await refreshAccessToken();
+    options.headers['Authorization'] = `Bearer ${accessToken}`;
+    res = await fetch(url, options);
+  }
+  return res;
+}
+
 async function syncMidExport(btn) {
   btn.textContent = 'Syncing…';
   btn.disabled = true;
   try {
+    // Ensure token is fresh
+    try { accessToken = await refreshAccessToken(); } catch(e) { /* use existing */ }
     // Get Master Tracker sheet metadata to find numeric sheetId for col J checkbox validation
-    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}?fields=sheets.properties`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+    const metaRes = await midFetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}?fields=sheets.properties`);
     const meta = await metaRes.json();
     const midSheet = (meta.sheets || []).find(s => s.properties.title === MID_TAB);
     const midSheetNumId = midSheet?.properties.sheetId;
 
     // Apply checkbox validation to col J (index 9) if we have the sheet ID
     if (midSheetNumId != null) {
-      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}:batchUpdate`, {
+      await midFetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}:batchUpdate`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requests: [{
           setDataValidation: {
             range: { sheetId: midSheetNumId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 9, endColumnIndex: 10 },
@@ -1929,7 +1942,7 @@ async function syncMidExport(btn) {
 
     // Read col D (Business Name) of Master Tracker to avoid duplicates
     const tabEncoded = encodeURIComponent(`${MID_TAB}!D:D`);
-    const existingVals = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}/values/${tabEncoded}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+    const existingVals = await midFetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}/values/${tabEncoded}`);
     const existingJson = await existingVals.json();
     const existingNames = new Set((existingJson.values || []).slice(1).map(r => (r[0] || '').toLowerCase()));
 
@@ -1942,9 +1955,9 @@ async function syncMidExport(btn) {
 
     if (newRows.length > 0) {
       const appendRange = encodeURIComponent(`${MID_TAB}!A:J`);
-      const appendRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}/values/${appendRange}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+      const appendRes = await midFetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}/values/${appendRange}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ values: newRows })
       });
       if (!appendRes.ok) { const err = await appendRes.json(); throw new Error(err.error?.message || appendRes.status); }
