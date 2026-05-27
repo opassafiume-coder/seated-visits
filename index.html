@@ -396,7 +396,7 @@
           style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);cursor:pointer;white-space:nowrap;">
           Newest first ↓
         </button>
-        <button onclick="syncMidExport()" style="font-size:12px;padding:6px 14px;border:none;border-radius:8px;background:#1A5C36;color:#fff;cursor:pointer;font-weight:600;white-space:nowrap;">
+        <button onclick="syncMidExport(this)" style="font-size:12px;padding:6px 14px;border:none;border-radius:8px;background:#1A5C36;color:#fff;cursor:pointer;font-weight:600;white-space:nowrap;">
           ↗ Sync MID Export
         </button>
       </div>
@@ -1901,8 +1901,7 @@ async function updatePvMidExported(idx, checked) {
   if (row) { try { await updateSheetCell(`PV Reports!V${row}`, checked ? 'TRUE' : ''); } catch(e) { console.error(e); } }
 }
 
-async function syncMidExport() {
-  const btn = event.target;
+async function syncMidExport(btn) {
   btn.textContent = 'Syncing…';
   btn.disabled = true;
   try {
@@ -1917,8 +1916,8 @@ async function syncMidExport() {
         body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'MID Export' } } }] })
       });
     }
-    // Clear existing content
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/MID%20Export!A:E:clear`, {
+    // Clear the entire tab
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/MID%20Export:clear`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
     });
@@ -1929,13 +1928,14 @@ async function syncMidExport() {
       const spot = spots.find(s => s.name === r.restaurant);
       return [r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', r.visitDate || ''];
     });
-    // Write all at once
-    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/MID%20Export!A1?valueInputOption=RAW`, {
+    // Write all at once starting at A1
+    const range = encodeURIComponent('MID Export!A1');
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?valueInputOption=RAW`, {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values: [headers, ...rows] })
+      body: JSON.stringify({ range: 'MID Export!A1', values: [headers, ...rows] })
     });
-    if (!res.ok) throw new Error(`Write failed: ${res.status}`);
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || res.status); }
     btn.textContent = `✅ Synced (${rows.length} pending)`;
     setTimeout(() => { btn.textContent = '↗ Sync MID Export'; btn.disabled = false; }, 3000);
   } catch(e) {
