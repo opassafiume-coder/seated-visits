@@ -512,6 +512,8 @@
 //    NOT the publish-to-web key.
 const OAUTH_CLIENT_ID = '352874229289-tglifiln7raionffiran3a63p6verre0.apps.googleusercontent.com';
 const SHEET_ID        = '15qUHpgov0nHUSxt0XMO0w0kYfCUUht_rhthZ9gOY0ac';
+const MID_SHEET_ID    = '1NHSgD_r49Heep_eVru9keyFHJxaSSauE7KFWFOYAmM0';
+const MID_TAB         = 'Master Tracker';
 const SCOPES          = 'https://www.googleapis.com/auth/spreadsheets';
 
 // Populated after sign-in from a `Config` tab in the sheet (two columns: key, value).
@@ -1905,62 +1907,51 @@ async function syncMidExport(btn) {
   btn.textContent = 'Syncing…';
   btn.disabled = true;
   try {
-    // Get spreadsheet metadata (tab list + sheet IDs)
-    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+    // Get Master Tracker sheet metadata to find numeric sheetId for col J checkbox validation
+    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}?fields=sheets.properties`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
     const meta = await metaRes.json();
-    const existingTabs = (meta.sheets || []).map(s => s.properties.title);
-    let midSheetId = (meta.sheets || []).find(s => s.properties.title === 'MID Export')?.properties.sheetId;
+    const midSheet = (meta.sheets || []).find(s => s.properties.title === MID_TAB);
+    const midSheetNumId = midSheet?.properties.sheetId;
 
-    if (!existingTabs.includes('MID Export')) {
-      // Create the tab
-      const createRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'MID Export' } } }] })
-      });
-      const createJson = await createRes.json();
-      midSheetId = createJson.replies[0].addSheet.properties.sheetId;
-      // Write header row
-      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A1')}?valueInputOption=RAW`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ range: 'MID Export!A1', values: [['Submitted By (Agent Name)', 'Business Name', 'Business ID', 'Network Transaction Amount', 'Transaction Date', 'Added to MID Recovery']] })
-      });
-    }
-
-    // Apply checkbox data validation to col F (index 5), rows 2-1000
-    if (midSheetId != null) {
-      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+    // Apply checkbox validation to col J (index 9) if we have the sheet ID
+    if (midSheetNumId != null) {
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}:batchUpdate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ requests: [{
           setDataValidation: {
-            range: { sheetId: midSheetId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 5, endColumnIndex: 6 },
+            range: { sheetId: midSheetNumId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 9, endColumnIndex: 10 },
             rule: { condition: { type: 'BOOLEAN' }, strict: true, showCustomUi: true }
           }
         }] })
       });
     }
 
-    // Read existing rows to avoid duplicates (key = name + restaurant)
-    const existingVals = await fetchSheetValues('MID Export!A:B');
-    const existingKeys = new Set((existingVals || []).slice(1).map(r => `${r[0]}|${r[1]}`));
-    // Build only new rows
-    const toExport = pvReports.filter(r => !r.midExported && !existingKeys.has(`${r.name}|${r.restaurant}`));
+    // Read col D (Business Name) of Master Tracker to avoid duplicates
+    const tabEncoded = encodeURIComponent(`${MID_TAB}!D:D`);
+    const existingVals = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}/values/${tabEncoded}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+    const existingJson = await existingVals.json();
+    const existingNames = new Set((existingJson.values || []).slice(1).map(r => (r[0] || '').toLowerCase()));
+
+    // Build new rows — cols A-J, data in C(2),D(3),E(4),F(5),I(8), checkbox in J(9)
+    const toExport = pvReports.filter(r => !r.midExported && !existingNames.has((r.restaurant || '').toLowerCase()));
     const newRows = toExport.map(r => {
       const spot = spots.find(s => s.name === r.restaurant);
-      return [r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', r.visitDate || '', false];
+      return ['', '', r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', '', '', r.visitDate || '', false];
     });
+
     if (newRows.length > 0) {
-      const appendRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A:F')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+      const appendRange = encodeURIComponent(`${MID_TAB}!A:J`);
+      const appendRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${MID_SHEET_ID}/values/${appendRange}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ values: newRows })
       });
       if (!appendRes.ok) { const err = await appendRes.json(); throw new Error(err.error?.message || appendRes.status); }
     }
-    btn.textContent = newRows.length > 0 ? `✅ Added ${newRows.length} new row${newRows.length > 1 ? 's' : ''}` : '✅ Already up to date';
-    setTimeout(() => { btn.textContent = '↗ Sync MID Export'; btn.disabled = false; }, 3000);
+
+    btn.textContent = newRows.length > 0 ? `✅ Added ${newRows.length} row${newRows.length > 1 ? 's' : ''} to Master Tracker` : '✅ Already up to date';
+    setTimeout(() => { btn.textContent = '↗ Sync MID Export'; btn.disabled = false; }, 4000);
   } catch(e) {
     alert('MID Export failed: ' + e.message);
     btn.textContent = '↗ Sync MID Export';
