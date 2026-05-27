@@ -1092,9 +1092,16 @@ function renderPvReports() {
     const idx = pvReports.indexOf(r);
     const matchedSpot = spots.find(s => s.name === r.restaurant);
     const matchedSlot = matchedSpot && matchedSpot.cardSlots[r.card];
-    const lockedReimb = (matchedSlot && matchedSlot.claimant && matchedSlot.claimant.reimb != null)
-      ? matchedSlot.claimant.reimb
-      : (r.reimb != null ? r.reimb : (matchedSpot && matchedSpot.reimb && matchedSpot.reimb[r.card] ? matchedSpot.reimb[r.card] : null));
+    const lockedReimb = (r.reimb != null && r.reimb !== '')
+      ? r.reimb
+      : (matchedSlot && matchedSlot.claimant && matchedSlot.claimant.reimb != null)
+        ? matchedSlot.claimant.reimb
+        : (matchedSpot && matchedSpot.reimb && matchedSpot.reimb[r.card] ? matchedSpot.reimb[r.card] : null);
+    // Backfill reimb into PV Reports sheet if it was blank
+    if (lockedReimb != null && (r.reimb == null || r.reimb === '') && r._sheetRow) {
+      updateSheetCell(`PV Reports!J${r._sheetRow}`, String(lockedReimb));
+      r.reimb = lockedReimb;
+    }
     return `<tr>
     <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${r.visitDate || r.submittedAt}</td>
     <td><div style="font-weight:500;font-size:13px;">${r.name}</div><div style="font-size:11px;color:var(--text-3);">${r.email}</div></td>
