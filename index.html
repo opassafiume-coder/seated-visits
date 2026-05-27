@@ -396,6 +396,9 @@
           style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);cursor:pointer;white-space:nowrap;">
           Newest first ↓
         </button>
+        <button onclick="syncMidExport()" style="font-size:12px;padding:6px 14px;border:none;border-radius:8px;background:#1A5C36;color:#fff;cursor:pointer;font-weight:600;white-space:nowrap;">
+          ↗ Sync MID Export
+        </button>
       </div>
     </div>
     <div style="overflow-x:auto;">
@@ -1887,6 +1890,49 @@ async function deletePvReport(idx) {
   const { pvReports: pv } = await loadAllDataFromSheets();
   pvReports = pv;
   renderPvReports();
+}
+
+async function syncMidExport() {
+  const btn = event.target;
+  btn.textContent = 'Syncing…';
+  btn.disabled = true;
+  try {
+    // Ensure MID Export tab exists
+    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties.title`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+    const meta = await metaRes.json();
+    const existing = (meta.sheets || []).map(s => s.properties.title);
+    if (!existing.includes('MID Export')) {
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'MID Export' } } }] })
+      });
+    }
+    // Clear existing content
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/MID%20Export!A:E:clear`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+    });
+    // Build rows
+    const headers = ['Submitted By (Agent Name)', 'Business Name', 'Business ID', 'Network Transaction Amount', 'Transaction Date'];
+    const rows = pvReports.map(r => {
+      const spot = spots.find(s => s.name === r.restaurant);
+      return [r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', r.visitDate || ''];
+    });
+    // Write all at once
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/MID%20Export!A1?valueInputOption=RAW`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [headers, ...rows] })
+    });
+    if (!res.ok) throw new Error(`Write failed: ${res.status}`);
+    btn.textContent = `✅ Synced (${rows.length} rows)`;
+    setTimeout(() => { btn.textContent = '↗ Sync MID Export'; btn.disabled = false; }, 3000);
+  } catch(e) {
+    alert('MID Export failed: ' + e.message);
+    btn.textContent = '↗ Sync MID Export';
+    btn.disabled = false;
+  }
 }
 
 async function updatePvAmountVenmood(idx, value) {
