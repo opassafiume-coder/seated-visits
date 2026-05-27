@@ -383,6 +383,13 @@
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
       <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;">Post-visit reports</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="pv-status-filter" onchange="renderPvReports()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);">
+          <option value="">All statuses</option>
+          <option value="New">New</option>
+          <option value="Venmo'd">Venmo'd</option>
+          <option value="Trx submitted in MID dash">Trx submitted in MID dash</option>
+          <option value="Voided">Voided</option>
+        </select>
         <input id="pv-admin-name-filter" type="text" placeholder="Filter by name…" oninput="renderPvReports()"
           style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:160px;">
         <button id="pv-admin-sort-btn" onclick="togglePvAdminSort()"
@@ -1082,7 +1089,11 @@ function togglePvAdminSort() {
 function renderPvReports() {
   const tbody = document.getElementById('pv-admin-tbody');
   const nameFilter = (document.getElementById('pv-admin-name-filter')?.value || '').toLowerCase().trim();
-  let filtered = pvReports.filter(r => !nameFilter || (r.name || '').toLowerCase().includes(nameFilter));
+  const statusFilter = document.getElementById('pv-status-filter')?.value || '';
+  let filtered = pvReports.filter(r =>
+    (!nameFilter || (r.name || '').toLowerCase().includes(nameFilter)) &&
+    (!statusFilter || (r.adminStatus || 'New') === statusFilter)
+  );
   const sorted = pvAdminSortAsc ? filtered.slice() : filtered.slice().reverse();
   if (!sorted.length) {
     tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
