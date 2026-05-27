@@ -1478,12 +1478,25 @@ async function restoreHistoricalClaims() {
 async function setStatus(id, card, status) {
   const s = spots.find(r => r.id === id);
   const slot = s.cardSlots[card];
-  const sheetRow = slot._sheetRow;
-  if (sheetRow) {
-    try {
-      await updateSheetCell(`Claims!F${sheetRow}`, status === 'Open' ? '' : status);
-    } catch(e) { alert('Failed to update status in sheet: ' + e.message); return; }
-  }
+  try {
+    if (status === 'Open') {
+      // Clear ALL rows for this restaurant+card to handle any duplicates
+      const vals = await fetchSheetValues('Claims!A:F');
+      if (vals.length > 1) {
+        const h = vals[0];
+        const ridIdx = h.indexOf('Restaurant ID');
+        const cardIdx = h.indexOf('Card');
+        for (let i = 1; i < vals.length; i++) {
+          if (parseInt(vals[i][ridIdx]) === id && (vals[i][cardIdx] || '') === card) {
+            await updateSheetCell(`Claims!F${i + 1}`, '');
+          }
+        }
+      }
+    } else {
+      const sheetRow = slot._sheetRow;
+      if (sheetRow) await updateSheetCell(`Claims!F${sheetRow}`, status);
+    }
+  } catch(e) { alert('Failed to update status in sheet: ' + e.message); return; }
   // Update in-memory
   slot.status = status;
   if (status === 'Open') { slot.claimant = null; slot._sheetRow = null; }
