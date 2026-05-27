@@ -1120,7 +1120,7 @@ function renderPvReports() {
       updateSheetCell(`PV Reports!J${r._sheetRow}`, String(lockedReimb));
       r.reimb = lockedReimb;
     }
-    return `<tr>
+    return `<tr style="${r.midExported ? 'opacity:0.45;background:#f0faf4;' : ''}">
     <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${r.visitDate || r.submittedAt}</td>
     <td><div style="font-weight:500;font-size:13px;">${r.name}</div><div style="font-size:11px;color:var(--text-3);">${r.email}</div></td>
     <td style="font-size:13px;">${r.restaurant}</td>
