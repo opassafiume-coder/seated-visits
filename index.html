@@ -410,10 +410,11 @@
             <th>My notes</th>
             <th>Amt Venmo'd</th>
             <th>Date Venmo'd</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="pv-admin-tbody">
-          <tr><td colspan="15" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
+          <tr><td colspan="16" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -1070,7 +1071,7 @@ function renderPvReports() {
   let filtered = pvReports.filter(r => !nameFilter || (r.name || '').toLowerCase().includes(nameFilter));
   const sorted = pvAdminSortAsc ? filtered.slice() : filtered.slice().reverse();
   if (!sorted.length) {
-    tbody.innerHTML = `<tr><td colspan="15" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
     return;
   }
   tbody.innerHTML = sorted.map(r => {
@@ -1106,6 +1107,7 @@ function renderPvReports() {
     <td><textarea onblur="updatePvNote(${idx}, this.value)" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:150px;min-height:50px;resize:vertical;">${r.adminNote||''}</textarea></td>
     <td><input type="text" value="${r.amountVenmood||''}" onblur="updatePvAmountVenmood(${idx}, this.value)" placeholder="$0.00" style="font-size:12px;font-family:'DM Mono',monospace;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:80px;" /></td>
     <td><input type="date" value="${r.dateVenmood||''}" onchange="updatePvDateVenmood(${idx}, this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:130px;" /></td>
+    <td><button onclick="deletePvReport(${idx})" style="font-size:12px;padding:4px 8px;border:1px solid #fca5a5;border-radius:6px;background:#fef2f2;color:#dc2626;cursor:pointer;">🗑</button></td>
   </tr>`;
   }).join('');
 }
@@ -1814,6 +1816,34 @@ async function updatePvNote(idx, value) {
   pvReports[idx].adminNote = value;
   const row = pvReports[idx]._sheetRow;
   if (row) { try { await updateSheetCell(`PV Reports!Q${row}`, value); } catch(e) { console.error(e); } }
+}
+
+async function deletePvReport(idx) {
+  const r = pvReports[idx];
+  if (!confirm(`Delete PV report for ${r.name} — ${r.restaurant}? This cannot be undone.`)) return;
+  const sheetRow = r._sheetRow;
+  if (sheetRow) {
+    try {
+      // Get numeric sheetId for "PV Reports" tab
+      const meta = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } });
+      const metaJson = await meta.json();
+      const sheet = (metaJson.sheets || []).find(s => s.properties.title === 'PV Reports');
+      if (!sheet) throw new Error('PV Reports tab not found');
+      const sheetId = sheet.properties.sheetId;
+      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: sheetRow - 1, endIndex: sheetRow } } }] })
+      });
+      if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+    } catch(e) { alert('Failed to delete: ' + e.message); return; }
+  }
+  pvReports.splice(idx, 1);
+  // Reload so _sheetRow indices stay accurate
+  const { pvReports: pv } = await loadAllDataFromSheets();
+  pvReports = pv;
+  renderPvReports();
 }
 
 async function updatePvAmountVenmood(idx, value) {
