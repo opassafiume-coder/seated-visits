@@ -1759,8 +1759,8 @@ async function submitPostVisit() {
   const ccpostFile = document.getElementById('pv-ccpost').files[0];
 
   document.getElementById('pv-error').style.display = 'none';
-  if (!visitDate || !amount || !last4 || !venmo || !notes || !receiptFile || !ccpostFile) {
-    document.getElementById('pv-error').textContent = !receiptFile ? 'Please upload your receipt photo.' : !ccpostFile ? 'Please upload your CC posting screenshot.' : !venmo ? 'Please enter your Venmo handle.' : !notes ? 'Please add notes about your visit.' : 'Please fill out all required fields.';
+  if (!visitDate || !amount || !last4 || !venmo || !receiptFile || !ccpostFile) {
+    document.getElementById('pv-error').textContent = !receiptFile ? 'Please upload your receipt photo.' : !ccpostFile ? 'Please upload your CC posting screenshot.' : !venmo ? 'Please enter your Venmo handle.' : 'Please fill out all required fields.';
     document.getElementById('pv-error').style.display = 'block';
     return;
   }
