@@ -1939,7 +1939,7 @@ async function syncMidExport(btn) {
       await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A1')}?valueInputOption=RAW`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ range: 'MID Export!A1', values: [['Submitted By (Agent Name)', 'Business Name', 'Business ID', 'Network Transaction Amount', 'Transaction Date', 'Added to MID Recovery']] })
+        body: JSON.stringify({ range: 'MID Export!A1', values: [['Submitted By (Agent Name)', 'Business Name', 'Business ID', 'Card Network', 'Network Transaction Amount', 'Transaction Date', 'Added to MID Recovery']] })
       });
     }
 
@@ -1949,7 +1949,7 @@ async function syncMidExport(btn) {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ requests: [{ setDataValidation: {
-          range: { sheetId: midSheetNumId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 5, endColumnIndex: 6 },
+          range: { sheetId: midSheetNumId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 6, endColumnIndex: 7 },
           rule: { condition: { type: 'BOOLEAN' }, strict: true, showCustomUi: true }
         }}] })
       });
@@ -1963,11 +1963,11 @@ async function syncMidExport(btn) {
     const toExport = pvReports.filter(r => !r.midExported && !existingNames.has((r.restaurant || '').toLowerCase()));
     const newRows = toExport.map(r => {
       const spot = spots.find(s => s.name === r.restaurant);
-      return [r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.amount || '', r.visitDate || '', false];
+      return [r.name || '', r.restaurant || '', spot ? String(spot.id) : '', r.card || '', r.amount || '', r.visitDate || '', false];
     });
 
     if (newRows.length > 0) {
-      const appendRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A:F')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+      const appendRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('MID Export!A:G')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ values: newRows })
