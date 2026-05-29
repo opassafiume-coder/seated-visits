@@ -331,6 +331,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button onclick="restoreHistoricalClaims()" style="font-size:12px;padding:6px 14px;border:1px solid #d97706;border-radius:8px;background:#fffbeb;color:#92400e;cursor:pointer;font-weight:600;white-space:nowrap;">🔄 Restore Historical Claims</button>
         <button onclick="restoreHistoricalPvReports()" style="font-size:12px;padding:6px 14px;border:1px solid #d97706;border-radius:8px;background:#fffbeb;color:#92400e;cursor:pointer;font-weight:600;white-space:nowrap;">🔄 Restore Historical PV Reports</button>
+        <button onclick="backfillRevAndPushPadma(this)" style="font-size:12px;padding:6px 14px;border:1px solid #1A5C36;border-radius:8px;background:#EDFAF3;color:#1A5C36;cursor:pointer;font-weight:600;white-space:nowrap;">💰 Backfill Rev + Push Padma PVs</button>
       </div>
     </div>
     <div class="stats-grid">
@@ -1511,6 +1512,68 @@ const HISTORICAL_PV_REPORTS = [
   ['2026-05-22T15:09:59Z', 'Michael Fiore', 'mfiore@seatedapp.io', 'Employee', '', "Jameson's Bar And Restaurant", 'Amex', '0128', '32.94', '34', '@michael-fiore1', 'NA', 'https://i.ibb.co/rWDM9ZJ/Jameson-s-jpg.jpg', 'https://i.ibb.co/bgd4wngX/unnamed-1-png.png', '2026-05-21', 'New', '', 'FALSE', '', '', '', ''],
   ['2026-05-26T12:50:45Z', 'Christopher Anthony', 'canthony@seatedapp.io', 'Employee', '', 'LeCiel', 'Amex', '8005', '20.94', '22', '@skip2my_chris', 'Hold off on Venmo- still waiting for the support to clear and open the account..', 'https://i.ibb.co/HfDrK3G4/Image-from-i-OS-5-jpg.jpg', 'https://i.ibb.co/gZLDt9pY/Screenshot-2026-05-26-at-8-32-08-AM-png.png', '2026-05-21', 'New', '', 'FALSE', '', '', '', ''],
 ];
+
+const HISTORICAL_REV_BACKFILL = [
+  { restaurant: 'DIG On 4th',                            card: 'Visa', rev: 200 },
+  { restaurant: 'Nar Restaurant',                        card: 'Amex', rev: 213 },
+  { restaurant: 'Comal',                                 card: 'Amex', rev: 200 },
+  { restaurant: 'Chelsea Living Room',                   card: 'Visa', rev: 0   },
+  { restaurant: 'Mido - Omakase Room',                   card: 'Amex', rev: 414 },
+  { restaurant: 'Happy Tuna Broome Street',              card: 'Amex', rev: 200 },
+  { restaurant: 'The High Note',                         card: 'Visa', rev: 411 },
+  { restaurant: "The Butcher's Daughter - Williamsburg", card: 'Visa', rev: 200 },
+  { restaurant: 'Carta',                                 card: 'Visa', rev: 162 },
+  { restaurant: "Jameson's Bar And Restaurant",          card: 'Amex', rev: 170 },
+  { restaurant: 'LeCiel',                                card: 'Amex', rev: 112 },
+  { restaurant: 'Taqueria On Tenth',                     card: 'Visa', rev: 159 },
+  { restaurant: 'Death Ave',                             card: 'Visa', rev: 193 },
+];
+
+const PADMA_PV_REPORTS_TO_PUSH = [
+  // [Submitted At, Name, Email, Relation, Employee Email, Restaurant, Card, Last 4, Amount Spent, Reimb, Venmo, Notes, Receipt URL, CC Screenshot URL, Visit Date, Status, Admin Notes, Receipt Received, Amount Venmod, Date Venmod, Venmo Fee, MID Export, Rev Value]
+  ['2026-05-21T00:38:45Z', 'Padma Rao', 'prao@seatedapp.io', 'Employee', '', 'Taqueria On Tenth', 'Visa', '', '', '', 'padmarao', 'Backfilled by Olivia', '', '', '2026-05-20', 'New', 'Backfilled — receipt/CC docs pending', 'FALSE', '', '', '', '', 159],
+  ['2026-05-21T00:38:04Z', 'Padma Rao', 'prao@seatedapp.io', 'Employee', '', 'Death Ave',          'Visa', '', '', '', 'padmarao', 'Backfilled by Olivia', '', '', '2026-05-20', 'New', 'Backfilled — receipt/CC docs pending', 'FALSE', '', '', '', '', 193],
+];
+
+async function backfillRevAndPushPadma(btn) {
+  if (!confirm('This will:\n1. Backfill Rev Value (col W) on 13 historical PV reports\n2. Push 2 new PV reports for Padma (Death Ave + Taqueria On Tenth)\n\nProceed?')) return;
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = 'Working…';
+  let updated = 0, pushed = 0;
+  try {
+    // Step 1: backfill Rev Value on existing PV reports
+    const vals = await fetchSheetValues('PV Reports!A:W');
+    if (vals.length > 1) {
+      const h = vals[0];
+      const restIdx = h.indexOf('Restaurant');
+      const cardIdx = h.indexOf('Card');
+      const norm = s => String(s || '').toLowerCase().trim();
+      for (let i = 1; i < vals.length; i++) {
+        const row = vals[i];
+        const rName = norm(row[restIdx]);
+        const card = row[cardIdx];
+        const match = HISTORICAL_REV_BACKFILL.find(b => norm(b.restaurant) === rName && b.card === card);
+        if (match) {
+          await updateSheetCell(`PV Reports!W${i + 1}`, String(match.rev));
+          updated++;
+        }
+      }
+    }
+    // Step 2: push Padma's two PV reports
+    for (const row of PADMA_PV_REPORTS_TO_PUSH) {
+      await appendToSheet('PV Reports', row);
+      pushed++;
+    }
+    alert(`✅ Done!\n• Updated Rev Value on ${updated} existing PV reports\n• Pushed ${pushed} new PV reports for Padma\n\nReloading…`);
+    await loadSpots();
+  } catch(e) {
+    alert('❌ Backfill failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
 
 async function restoreHistoricalPvReports() {
   let currentRows = 0;
