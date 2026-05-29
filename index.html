@@ -440,6 +440,7 @@
             <th>Last 4</th>
             <th>Amount</th>
             <th>Reimb</th>
+            <th>Rev value</th>
             <th>Venmo</th>
             <th>Their notes</th>
             <th>Files</th>
@@ -454,7 +455,7 @@
           </tr>
         </thead>
         <tbody id="pv-admin-tbody">
-          <tr><td colspan="18" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
+          <tr><td colspan="19" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -796,8 +797,8 @@ async function ensureDataTabs() {
     const meta = await metaRes.json();
     const existing = (meta.sheets || []).map(s => s.properties.title);
     const tabs = [
-      { title: 'Claims',     headers: ['Restaurant ID','Restaurant Name','Address','City','Card','Status','Claimant Name','Claimant Email','Relation','Employee Email','Claimed At','Reimb'] },
-      { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received','Amount Venmod','Date Venmod','Venmo Fee','MID Export'] },
+      { title: 'Claims',     headers: ['Restaurant ID','Restaurant Name','Address','City','Card','Status','Claimant Name','Claimant Email','Relation','Employee Email','Claimed At','Reimb','Rev Value'] },
+      { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received','Amount Venmod','Date Venmod','Venmo Fee','MID Export','Rev Value'] },
       { title: 'Claim Log',  headers: ['Logged At','Name','Email','Relation','Restaurant','Address','City','Card','Reimb','Restaurant ID'] },
     ];
     const toCreate = tabs.filter(t => !existing.includes(t.title));
@@ -850,6 +851,7 @@ async function loadAllDataFromSheets() {
               employeeEmail: row[idx('Employee Email')] || null,
               claimedAt: row[idx('Claimed At')] || '',
               reimb: row[idx('Reimb')] !== '' && row[idx('Reimb')] != null ? parseFloat(row[idx('Reimb')]) : null,
+              revValue: row[idx('Rev Value')] !== '' && row[idx('Rev Value')] != null ? parseFloat(row[idx('Rev Value')]) : null,
               restaurantName: row[idx('Restaurant Name')] || '',
               restaurantAddr: row[idx('Address')] || '',
               restaurantMarket: row[idx('City')] || ''
@@ -863,7 +865,7 @@ async function loadAllDataFromSheets() {
   // ── PV Reports ──
   const loadedPvReports = [];
   try {
-    const vals = await fetchSheetValues('PV Reports!A:V');
+    const vals = await fetchSheetValues('PV Reports!A:W');
     if (vals.length > 1) {
       const h = vals[0]; const idx = k => h.indexOf(k);
       vals.slice(1).forEach((row, i) => {
@@ -891,6 +893,7 @@ async function loadAllDataFromSheets() {
           dateVenmood:    row[idx('Date Venmod')] || '',
           venmoFee:       row[idx('Venmo Fee')] || '',
           midExported:    row[idx('MID Export')] === 'TRUE' || row[idx('MID Export')] === true,
+          revValue:       row[idx('Rev Value')] !== '' && row[idx('Rev Value')] != null ? parseFloat(row[idx('Rev Value')]) : null,
           _sheetRow:      i + 2,
         });
       });
@@ -1133,7 +1136,7 @@ function renderPvReports() {
   );
   const sorted = pvAdminSortAsc ? filtered.slice() : filtered.slice().reverse();
   if (!sorted.length) {
-    tbody.innerHTML = `<tr><td colspan="18" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="19" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
     return;
   }
   tbody.innerHTML = sorted.map(r => {
@@ -1158,6 +1161,11 @@ function renderPvReports() {
     <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${r.last4 || '—'}</td>
     <td style="font-size:13px;font-family:'DM Mono',monospace;">$${parseFloat(r.amount).toFixed(2)}</td>
     <td style="font-size:13px;font-weight:600;color:#1A5C36;">${lockedReimb != null ? `$${lockedReimb}` : '—'}</td>
+    <td style="font-size:13px;font-weight:600;color:#1A4A8A;">${(() => {
+      if (r.revValue != null && !isNaN(Number(r.revValue))) return `$${Math.round(Number(r.revValue)).toLocaleString()}`;
+      if (matchedSpot && matchedSpot.rev && matchedSpot.rev[r.card] != null) return `$${Math.round(Number(matchedSpot.rev[r.card])).toLocaleString()}`;
+      return '—';
+    })()}</td>
     <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${r.venmo || '—'}</td>
     <td style="font-size:12px;color:var(--text-2);">${r.notes || '—'}</td>
     <td style="font-size:12px;">
@@ -1350,12 +1358,13 @@ async function _doSubmitClaim() {
 
   slot.status = 'Claimed';
   const lockedReimb = s.reimb && s.reimb[selectedCard] ? s.reimb[selectedCard] : 0;
+  const lockedRev = s.rev && s.rev[selectedCard] != null ? s.rev[selectedCard] : 0;
   const claimedAt = new Date().toISOString();
-  slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt, reimb: lockedReimb, restaurantName: s.name, restaurantAddr: s.addr, restaurantMarket: s.market };
+  slot.claimant = { name, email, rel, employeeEmail: isFriendFamily ? employeeEmail : null, claimedAt, reimb: lockedReimb, revValue: lockedRev, restaurantName: s.name, restaurantAddr: s.addr, restaurantMarket: s.market };
 
   // Write to Claims + Claim Log tabs
   try {
-    await appendToSheet('Claims', [s.id, s.name, s.addr, s.market, selectedCard, 'Claimed', name, email, rel, isFriendFamily ? employeeEmail : '', claimedAt, lockedReimb]);
+    await appendToSheet('Claims', [s.id, s.name, s.addr, s.market, selectedCard, 'Claimed', name, email, rel, isFriendFamily ? employeeEmail : '', claimedAt, lockedReimb, lockedRev]);
     await appendToSheet('Claim Log', [claimedAt, name, email, rel, s.name, s.addr, s.market, selectedCard, lockedReimb, s.id]);
     claimLog.push({ loggedAt: claimedAt, name, email, rel, restaurant: s.name, address: s.addr, city: s.market, card: selectedCard, reimb: lockedReimb, restaurantId: s.id });
   } catch(e) {
@@ -1618,18 +1627,20 @@ function updateStats() {
   });
   let revCaptured = 0;
   let reimbPaid = 0;
-  let matched = 0;
   const unmatched = [];
   const norm = s => String(s || '').toLowerCase().trim();
   validReports.forEach(r => {
-    const rName = norm(r.restaurant);
-    const spot = spots.find(s => norm(s.name) === rName);
-    const cardKey = r.card; // 'Visa' | 'Mastercard' | 'Amex'
-    if (spot && spot.rev && spot.rev[cardKey] != null) {
-      revCaptured += Number(spot.rev[cardKey]) || 0;
-      matched++;
+    // Prefer the rev value locked in at PV submit time
+    if (r.revValue != null && !isNaN(Number(r.revValue))) {
+      revCaptured += Number(r.revValue);
     } else {
-      unmatched.push(`${r.restaurant} (${r.card})`);
+      // Fallback: look up from current Restaurants tab
+      const spot = spots.find(s => norm(s.name) === norm(r.restaurant));
+      if (spot && spot.rev && spot.rev[r.card] != null) {
+        revCaptured += Number(spot.rev[r.card]) || 0;
+      } else {
+        unmatched.push(`${r.restaurant} (${r.card})`);
+      }
     }
     const amt = parseFloat(r.amountVenmood);
     if (!isNaN(amt)) reimbPaid += amt;
@@ -1879,6 +1890,9 @@ async function _doSubmitPostVisit() {
   const lockedPvReimb = (pvSlot && pvSlot.claimant && pvSlot.claimant.reimb != null)
     ? pvSlot.claimant.reimb
     : (pvSpot && pvSpot.reimb && pvSpot.reimb[card] ? pvSpot.reimb[card] : '');
+  const lockedPvRev = (pvSlot && pvSlot.claimant && pvSlot.claimant.revValue != null)
+    ? pvSlot.claimant.revValue
+    : (pvSpot && pvSpot.rev && pvSpot.rev[card] != null ? pvSpot.rev[card] : '');
   try {
     await appendToSheet('PV Reports', [
       submittedAt, name, email, rel,
@@ -1889,7 +1903,8 @@ async function _doSubmitPostVisit() {
       venmo || '', notes || '',
       receiptUrl || '', ccpostUrl || '',
       visitDate || '',
-      'New', '', '', '', '', '', '' // Status, Admin Notes, Receipt Received, Amount Venmod, Date Venmod, Venmo Fee, MID Export
+      'New', '', '', '', '', '', '', // Status, Admin Notes, Receipt Received, Amount Venmod, Date Venmod, Venmo Fee, MID Export
+      lockedPvRev // Rev Value — carried over from claim
     ]);
     pvReports.push({
       submittedAt, name, email, rel,
@@ -1899,6 +1914,7 @@ async function _doSubmitPostVisit() {
       notes, receiptUrl, ccpostUrl,
       adminStatus: 'New', adminNote: '', receiptReceived: false,
       amountVenmood: '', dateVenmood: '', venmoFee: '', midExported: false,
+      revValue: lockedPvRev,
     });
   } catch(e) {
     console.error('Failed to save PV report to sheet:', e);
