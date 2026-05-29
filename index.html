@@ -340,22 +340,34 @@
       <div class="stat-card"><div class="stat-label">Confirmed</div><div class="stat-val" id="stat-confirmed">0</div></div>
     </div>
 
-    <div class="stats-grid" style="margin-top:12px;">
-      <div class="stat-card" style="background:#EDFAF3;border-color:#6FD4A4;">
-        <div class="stat-label" style="color:#1A5C36;">Visits completed</div>
-        <div class="stat-val" id="stat-visits" style="color:#1A5C36;">0</div>
+    <div style="margin-top:20px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+        <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;">Impact</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-2);">
+          <label>From:</label>
+          <input type="date" id="impact-from" onchange="updateStats()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);">
+          <label>To:</label>
+          <input type="date" id="impact-to" onchange="updateStats()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);">
+          <button onclick="document.getElementById('impact-from').value='';document.getElementById('impact-to').value='';updateStats();" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text-2);cursor:pointer;">All time</button>
+        </div>
       </div>
-      <div class="stat-card" style="background:#EDFAF3;border-color:#6FD4A4;">
-        <div class="stat-label" style="color:#1A5C36;">Monthly rev captured</div>
-        <div class="stat-val" id="stat-revenue" style="color:#1A5C36;">$0</div>
-      </div>
-      <div class="stat-card" style="background:#FFF8EC;border-color:#F6A623;">
-        <div class="stat-label" style="color:#7A4E00;">Reimb paid out</div>
-        <div class="stat-val" id="stat-reimb" style="color:#7A4E00;">$0</div>
-      </div>
-      <div class="stat-card" style="background:#EBF3FF;border-color:#7AB1F0;">
-        <div class="stat-label" style="color:#1A4A8A;">ROI multiplier</div>
-        <div class="stat-val" id="stat-roi" style="color:#1A4A8A;">—</div>
+      <div class="stats-grid">
+        <div class="stat-card" style="background:#EDFAF3;border-color:#6FD4A4;">
+          <div class="stat-label" style="color:#1A5C36;">Visits completed</div>
+          <div class="stat-val" id="stat-visits" style="color:#1A5C36;">0</div>
+        </div>
+        <div class="stat-card" style="background:#EDFAF3;border-color:#6FD4A4;">
+          <div class="stat-label" style="color:#1A5C36;">Monthly rev captured</div>
+          <div class="stat-val" id="stat-revenue" style="color:#1A5C36;">$0</div>
+        </div>
+        <div class="stat-card" style="background:#FFF8EC;border-color:#F6A623;">
+          <div class="stat-label" style="color:#7A4E00;">Reimb paid out</div>
+          <div class="stat-val" id="stat-reimb" style="color:#7A4E00;">$0</div>
+        </div>
+        <div class="stat-card" style="background:#EBF3FF;border-color:#7AB1F0;">
+          <div class="stat-label" style="color:#1A4A8A;">ROI multiplier</div>
+          <div class="stat-val" id="stat-roi" style="color:#1A4A8A;">—</div>
+        </div>
       </div>
     </div>
 
@@ -1593,8 +1605,17 @@ function updateStats() {
   document.getElementById('stat-claimed').textContent = allSlots.filter(sl => sl.status === 'Claimed').length;
   document.getElementById('stat-confirmed').textContent = allSlots.filter(sl => sl.status === 'Confirmed').length;
 
-  // Impact stats — based on submitted PV reports (excluding Voided)
-  const validReports = (pvReports || []).filter(r => (r.adminStatus || 'New') !== 'Voided');
+  // Impact stats — based on submitted PV reports (excluding Voided), filtered by date range
+  const fromVal = document.getElementById('impact-from')?.value || '';
+  const toVal   = document.getElementById('impact-to')?.value || '';
+  const fromTs  = fromVal ? new Date(fromVal + 'T00:00:00').getTime() : -Infinity;
+  const toTs    = toVal   ? new Date(toVal   + 'T23:59:59').getTime() : Infinity;
+  const validReports = (pvReports || []).filter(r => {
+    if ((r.adminStatus || 'New') === 'Voided') return false;
+    const ts = new Date(r.visitDate || r.submittedAt || 0).getTime();
+    if (isNaN(ts)) return true;
+    return ts >= fromTs && ts <= toTs;
+  });
   let revCaptured = 0;
   let reimbPaid = 0;
   validReports.forEach(r => {
