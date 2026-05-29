@@ -1618,12 +1618,23 @@ function updateStats() {
   });
   let revCaptured = 0;
   let reimbPaid = 0;
+  let matched = 0;
+  const unmatched = [];
+  const norm = s => String(s || '').toLowerCase().trim();
   validReports.forEach(r => {
-    const spot = spots.find(s => s.name === r.restaurant);
-    if (spot && spot.rev && spot.rev[r.card] != null) revCaptured += Number(spot.rev[r.card]) || 0;
+    const rName = norm(r.restaurant);
+    const spot = spots.find(s => norm(s.name) === rName);
+    const cardKey = r.card; // 'Visa' | 'Mastercard' | 'Amex'
+    if (spot && spot.rev && spot.rev[cardKey] != null) {
+      revCaptured += Number(spot.rev[cardKey]) || 0;
+      matched++;
+    } else {
+      unmatched.push(`${r.restaurant} (${r.card})`);
+    }
     const amt = parseFloat(r.amountVenmood);
     if (!isNaN(amt)) reimbPaid += amt;
   });
+  if (unmatched.length > 0) console.warn(`Impact stats: ${unmatched.length}/${validReports.length} PV reports couldn't be matched to a restaurant in the current Restaurants tab:`, unmatched);
   const fmt = n => '$' + Math.round(n).toLocaleString();
   const visitsEl = document.getElementById('stat-visits');
   const revEl    = document.getElementById('stat-revenue');
