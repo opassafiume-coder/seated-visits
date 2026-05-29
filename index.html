@@ -1531,41 +1531,52 @@ const HISTORICAL_REV_BACKFILL = [
 
 const PADMA_PV_REPORTS_TO_PUSH = [
   // [Submitted At, Name, Email, Relation, Employee Email, Restaurant, Card, Last 4, Amount Spent, Reimb, Venmo, Notes, Receipt URL, CC Screenshot URL, Visit Date, Status, Admin Notes, Receipt Received, Amount Venmod, Date Venmod, Venmo Fee, MID Export, Rev Value]
-  ['2026-05-21T00:38:45Z', 'Padma Rao', 'prao@seatedapp.io', 'Employee', '', 'Taqueria On Tenth', 'Visa', '', '', '', 'padmarao', 'Backfilled by Olivia', '', '', '2026-05-20', 'New', 'Backfilled — receipt/CC docs pending', 'FALSE', '', '', '', '', 159],
-  ['2026-05-21T00:38:04Z', 'Padma Rao', 'prao@seatedapp.io', 'Employee', '', 'Death Ave',          'Visa', '', '', '', 'padmarao', 'Backfilled by Olivia', '', '', '2026-05-20', 'New', 'Backfilled — receipt/CC docs pending', 'FALSE', '', '', '', '', 193],
+  ['2026-05-21T00:38:45Z', 'Padma Rao', 'prao@seatedapp.io', 'Employee', '', 'Taqueria On Tenth', 'Visa', '', '48.34', '', 'padmarao', 'Backfilled by Olivia', '', '', '2026-05-20', 'New', 'Backfilled — receipt/CC docs pending', 'FALSE', '', '', '', '', 159],
+  ['2026-05-21T00:38:04Z', 'Padma Rao', 'prao@seatedapp.io', 'Employee', '', 'Death Ave',          'Visa', '', '29.24', '', 'padmarao', 'Backfilled by Olivia', '', '', '2026-05-20', 'New', 'Backfilled — receipt/CC docs pending', 'FALSE', '', '', '', '', 193],
 ];
 
 async function backfillRevAndPushPadma(btn) {
-  if (!confirm('This will:\n1. Backfill Rev Value (col W) on 13 historical PV reports\n2. Push 2 new PV reports for Padma (Death Ave + Taqueria On Tenth)\n\nProceed?')) return;
+  if (!confirm('This will:\n1. Backfill Rev Value (col W) on 13 historical PV reports\n2. Push 2 new PV reports for Padma (Death Ave + Taqueria On Tenth) if not already there\n\nSafe to re-click — duplicates skipped.\n\nProceed?')) return;
   btn.disabled = true;
   const origText = btn.textContent;
   btn.textContent = 'Working…';
-  let updated = 0, pushed = 0;
+  let updated = 0, pushed = 0, skipped = 0;
   try {
-    // Step 1: backfill Rev Value on existing PV reports
     const vals = await fetchSheetValues('PV Reports!A:W');
-    if (vals.length > 1) {
-      const h = vals[0];
-      const restIdx = h.indexOf('Restaurant');
-      const cardIdx = h.indexOf('Card');
-      const norm = s => String(s || '').toLowerCase().trim();
-      for (let i = 1; i < vals.length; i++) {
-        const row = vals[i];
-        const rName = norm(row[restIdx]);
-        const card = row[cardIdx];
-        const match = HISTORICAL_REV_BACKFILL.find(b => norm(b.restaurant) === rName && b.card === card);
-        if (match) {
-          await updateSheetCell(`PV Reports!W${i + 1}`, String(match.rev));
-          updated++;
-        }
+    const h = vals[0] || [];
+    const restIdx = h.indexOf('Restaurant');
+    const cardIdx = h.indexOf('Card');
+    const nameIdx = h.indexOf('Name');
+    const norm = s => String(s || '').toLowerCase().trim();
+
+    // Step 1: backfill Rev Value on existing PV reports
+    for (let i = 1; i < vals.length; i++) {
+      const row = vals[i];
+      if (!row || !row[0]) continue;
+      const rName = norm(row[restIdx]);
+      const card = row[cardIdx];
+      const match = HISTORICAL_REV_BACKFILL.find(b => norm(b.restaurant) === rName && b.card === card);
+      if (match) {
+        await updateSheetCell(`PV Reports!W${i + 1}`, String(match.rev));
+        updated++;
       }
     }
-    // Step 2: push Padma's two PV reports
+
+    // Step 2: push Padma's PVs, but skip if same (name + restaurant + card) already exists
+    const existsKey = (n, r, c) => `${norm(n)}|${norm(r)}|${c}`;
+    const existing = new Set();
+    for (let i = 1; i < vals.length; i++) {
+      const row = vals[i] || [];
+      if (!row[0]) continue;
+      existing.add(existsKey(row[nameIdx], row[restIdx], row[cardIdx]));
+    }
     for (const row of PADMA_PV_REPORTS_TO_PUSH) {
+      const key = existsKey(row[1], row[5], row[6]);
+      if (existing.has(key)) { skipped++; continue; }
       await appendToSheet('PV Reports', row);
       pushed++;
     }
-    alert(`✅ Done!\n• Updated Rev Value on ${updated} existing PV reports\n• Pushed ${pushed} new PV reports for Padma\n\nReloading…`);
+    alert(`✅ Done!\n• Updated Rev Value on ${updated} existing PV reports\n• Pushed ${pushed} new PV reports for Padma\n• Skipped ${skipped} (already in sheet)\n\nReloading…`);
     await loadSpots();
   } catch(e) {
     alert('❌ Backfill failed: ' + e.message);
