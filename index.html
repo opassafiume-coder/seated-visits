@@ -332,6 +332,7 @@
         <button onclick="restoreHistoricalClaims()" style="font-size:12px;padding:6px 14px;border:1px solid #d97706;border-radius:8px;background:#fffbeb;color:#92400e;cursor:pointer;font-weight:600;white-space:nowrap;">🔄 Restore Historical Claims</button>
         <button onclick="restoreHistoricalPvReports()" style="font-size:12px;padding:6px 14px;border:1px solid #d97706;border-radius:8px;background:#fffbeb;color:#92400e;cursor:pointer;font-weight:600;white-space:nowrap;">🔄 Restore Historical PV Reports</button>
         <button onclick="backfillRevAndPushPadma(this)" style="font-size:12px;padding:6px 14px;border:1px solid #1A5C36;border-radius:8px;background:#EDFAF3;color:#1A5C36;cursor:pointer;font-weight:600;white-space:nowrap;">💰 Backfill Rev + Push Padma PVs</button>
+        <button onclick="dedupePvReports(this)" style="font-size:12px;padding:6px 14px;border:1px solid #b91c1c;border-radius:8px;background:#fef2f2;color:#b91c1c;cursor:pointer;font-weight:600;white-space:nowrap;">🧹 Remove PV Duplicates</button>
       </div>
     </div>
     <div class="stats-grid">
@@ -1563,7 +1564,7 @@ async function backfillRevAndPushPadma(btn) {
     }
 
     // Step 2: push Padma's PVs, but skip if same (name + restaurant + card) already exists
-    const existsKey = (n, r, c) => `${norm(n)}|${norm(r)}|${c}`;
+    const existsKey = (n, r, c) => `${norm(n)}|${norm(r)}|${norm(c)}`;
     const existing = new Set();
     for (let i = 1; i < vals.length; i++) {
       const row = vals[i] || [];
@@ -1580,6 +1581,71 @@ async function backfillRevAndPushPadma(btn) {
     await loadSpots();
   } catch(e) {
     alert('❌ Backfill failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function dedupePvReports(btn) {
+  if (!confirm('This will scan PV Reports for duplicates (same submittedAt + name + restaurant + card) and delete extras, keeping the FIRST occurrence of each.\n\nProceed?')) return;
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = 'Scanning…';
+  try {
+    const vals = await fetchSheetValues('PV Reports!A:W');
+    if (vals.length < 2) { alert('No data to dedupe.'); return; }
+    const h = vals[0];
+    const submIdx = h.indexOf('Submitted At');
+    const nameIdx = h.indexOf('Name');
+    const restIdx = h.indexOf('Restaurant');
+    const cardIdx = h.indexOf('Card');
+    const norm = s => String(s || '').toLowerCase().trim();
+
+    const seen = new Set();
+    const toDelete = []; // 1-indexed sheet rows
+    for (let i = 1; i < vals.length; i++) {
+      const row = vals[i] || [];
+      if (!row[0]) continue;
+      const key = `${row[submIdx]}|${norm(row[nameIdx])}|${norm(row[restIdx])}|${norm(row[cardIdx])}`;
+      if (seen.has(key)) {
+        toDelete.push(i + 1); // sheet row (1-indexed, +1 for header)
+      } else {
+        seen.add(key);
+      }
+    }
+
+    if (toDelete.length === 0) {
+      alert('✅ No duplicates found.');
+      return;
+    }
+    if (!confirm(`Found ${toDelete.length} duplicate row(s). Delete them? (Cannot be undone.)`)) return;
+
+    // Get sheet numeric ID for PV Reports
+    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+    const meta = await metaRes.json();
+    const pvSheet = (meta.sheets || []).find(s => s.properties.title === 'PV Reports');
+    if (!pvSheet) throw new Error('PV Reports tab not found');
+    const pvSheetId = pvSheet.properties.sheetId;
+
+    // Delete in reverse order so earlier indices stay valid
+    toDelete.sort((a, b) => b - a);
+    const requests = toDelete.map(row => ({
+      deleteDimension: {
+        range: { sheetId: pvSheetId, dimension: 'ROWS', startIndex: row - 1, endIndex: row }
+      }
+    }));
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests })
+    });
+    if (!res.ok) throw new Error('Batch delete failed: ' + res.status);
+
+    alert(`✅ Deleted ${toDelete.length} duplicate PV report(s). Reloading…`);
+    await loadSpots();
+  } catch(e) {
+    alert('❌ Dedupe failed: ' + e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
