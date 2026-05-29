@@ -340,6 +340,25 @@
       <div class="stat-card"><div class="stat-label">Confirmed</div><div class="stat-val" id="stat-confirmed">0</div></div>
     </div>
 
+    <div class="stats-grid" style="margin-top:12px;">
+      <div class="stat-card" style="background:#EDFAF3;border-color:#6FD4A4;">
+        <div class="stat-label" style="color:#1A5C36;">Visits completed</div>
+        <div class="stat-val" id="stat-visits" style="color:#1A5C36;">0</div>
+      </div>
+      <div class="stat-card" style="background:#EDFAF3;border-color:#6FD4A4;">
+        <div class="stat-label" style="color:#1A5C36;">Monthly rev captured</div>
+        <div class="stat-val" id="stat-revenue" style="color:#1A5C36;">$0</div>
+      </div>
+      <div class="stat-card" style="background:#FFF8EC;border-color:#F6A623;">
+        <div class="stat-label" style="color:#7A4E00;">Reimb paid out</div>
+        <div class="stat-val" id="stat-reimb" style="color:#7A4E00;">$0</div>
+      </div>
+      <div class="stat-card" style="background:#EBF3FF;border-color:#7AB1F0;">
+        <div class="stat-label" style="color:#1A4A8A;">ROI multiplier</div>
+        <div class="stat-val" id="stat-roi" style="color:#1A4A8A;">—</div>
+      </div>
+    </div>
+
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
       <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;">Spot assignments</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -1573,6 +1592,26 @@ function updateStats() {
   document.getElementById('stat-open').textContent = allSlots.filter(sl => sl.status === 'Open').length;
   document.getElementById('stat-claimed').textContent = allSlots.filter(sl => sl.status === 'Claimed').length;
   document.getElementById('stat-confirmed').textContent = allSlots.filter(sl => sl.status === 'Confirmed').length;
+
+  // Impact stats — based on submitted PV reports (excluding Voided)
+  const validReports = (pvReports || []).filter(r => (r.adminStatus || 'New') !== 'Voided');
+  let revCaptured = 0;
+  let reimbPaid = 0;
+  validReports.forEach(r => {
+    const spot = spots.find(s => s.name === r.restaurant);
+    if (spot && spot.rev && spot.rev[r.card] != null) revCaptured += Number(spot.rev[r.card]) || 0;
+    const amt = parseFloat(r.amountVenmood);
+    if (!isNaN(amt)) reimbPaid += amt;
+  });
+  const fmt = n => '$' + Math.round(n).toLocaleString();
+  const visitsEl = document.getElementById('stat-visits');
+  const revEl    = document.getElementById('stat-revenue');
+  const reimbEl  = document.getElementById('stat-reimb');
+  const roiEl    = document.getElementById('stat-roi');
+  if (visitsEl) visitsEl.textContent = validReports.length;
+  if (revEl)    revEl.textContent    = fmt(revCaptured);
+  if (reimbEl)  reimbEl.textContent  = fmt(reimbPaid);
+  if (roiEl)    roiEl.textContent    = reimbPaid > 0 ? (revCaptured / reimbPaid).toFixed(1) + 'x' : '—';
 }
 
 function populateMarketFilter() {
