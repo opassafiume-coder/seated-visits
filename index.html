@@ -205,7 +205,7 @@
           </div>
         </div>
         <div class="form-actions">
-          <button class="btn-primary" onclick="submitClaim()">Submit claim</button>
+          <button id="claim-submit-btn" class="btn-primary" onclick="submitClaim(this)">Submit claim</button>
           <button class="btn-ghost" onclick="cancelClaim()">Cancel</button>
         </div>
       </div>
@@ -1277,7 +1277,20 @@ function showSignupList() {
   document.getElementById('resto-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-async function submitClaim() {
+let _claimSubmitting = false;
+async function submitClaim(btn) {
+  if (_claimSubmitting) return;
+  _claimSubmitting = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+  try {
+    await _doSubmitClaim();
+  } finally {
+    _claimSubmitting = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Submit claim'; }
+  }
+}
+
+async function _doSubmitClaim() {
   const name = document.getElementById('f-name').value.trim();
   const email = document.getElementById('f-email').value.trim();
   const rel = document.getElementById('f-rel').value;
@@ -1736,7 +1749,18 @@ function resetPvLookup() {
   document.getElementById('pv-lookup-error').style.display = 'none';
 }
 
+let _pvSubmitting = false;
 async function submitPostVisit() {
+  if (_pvSubmitting) return;
+  _pvSubmitting = true;
+  try {
+    await _doSubmitPostVisit();
+  } finally {
+    _pvSubmitting = false;
+  }
+}
+
+async function _doSubmitPostVisit() {
   if (!pvSelectedClaim) return;
   const { spot, card, claimant } = pvSelectedClaim;
 
@@ -1775,8 +1799,7 @@ async function submitPostVisit() {
     uploadToImgBB(receiptFile),
     uploadToImgBB(ccpostFile)
   ]);
-  submitBtn.textContent = 'Submit report';
-  submitBtn.disabled = false;
+  submitBtn.textContent = 'Submitting…';
 
   const submittedAt = new Date().toISOString();
   // Pull locked reimb from the active claim for this restaurant+card
