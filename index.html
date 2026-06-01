@@ -373,13 +373,14 @@
       <div>
         <table class="admin-table" id="phone-directory-table" style="table-layout:fixed;width:100%;">
           <colgroup>
-            <col style="width:24%;">
+            <col style="width:20%;">
             <col style="width:9%;">
             <col style="width:9%;">
             <col style="width:9%;">
             <col style="width:13%;">
             <col style="width:10%;">
-            <col style="width:26%;">
+            <col style="width:10%;">
+            <col style="width:20%;">
           </colgroup>
           <thead>
             <tr>
@@ -389,11 +390,12 @@
               <th>Amex</th>
               <th>Status</th>
               <th>Last contacted</th>
+              <th>Trx ran</th>
               <th>Notes</th>
             </tr>
           </thead>
           <tbody id="phone-directory-tbody">
-            <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants</td></tr>
+            <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants</td></tr>
           </tbody>
         </table>
       </div>
@@ -925,7 +927,7 @@ async function ensureDataTabs() {
     const tabs = [
       { title: 'Claims',     headers: ['Restaurant ID','Restaurant Name','Address','City','Card','Status','Claimant Name','Claimant Email','Relation','Employee Email','Claimed At','Reimb','Rev Value'] },
       { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received','Amount Venmod','Date Venmod','Venmo Fee','MID Export','Rev Value'] },
-      { title: 'Phone Tests', headers: ['Restaurant Name','Admin ID','Card Network','Card ID','Amount','Date','Status','Submitted to MID','Notes','Tester Email','Last Updated At'] },
+      { title: 'Phone Tests', headers: ['Restaurant Name','Admin ID','Card Network','Card ID','Amount','Trx Date','Status','Submitted to MID','Notes','Tester Email','Last Updated At','Last Contacted'] },
       { title: 'Claim Log',  headers: ['Logged At','Name','Email','Relation','Restaurant','Address','City','Card','Reimb','Restaurant ID'] },
     ];
     const toCreate = tabs.filter(t => !existing.includes(t.title));
@@ -1054,13 +1056,12 @@ async function loadAllDataFromSheets() {
   // ── Phone Tests ── (one row per (restaurant, card) test)
   const loadedPhoneTests = [];
   try {
-    const vals = await fetchSheetValues('Phone Tests!A:K');
+    const vals = await fetchSheetValues('Phone Tests!A:L');
     if (vals.length > 1) {
       const h = vals[0]; const idx = k => h.indexOf(k);
       vals.slice(1).forEach((row, i) => {
         if (!row[0]) return;
         const network = String(row[idx('Card Network')] || '').toUpperCase();
-        // Normalize back to internal card key (Visa / Mastercard / Amex)
         const cardKey = network === 'VISA' ? 'Visa' : network === 'MASTERCARD' ? 'Mastercard' : network === 'AMEX' ? 'Amex' : '';
         loadedPhoneTests.push({
           restaurantName: row[idx('Restaurant Name')] || '',
@@ -1069,12 +1070,13 @@ async function loadAllDataFromSheets() {
           card:           cardKey,
           cardId:         row[idx('Card ID')] || '',
           amount:         row[idx('Amount')] || '',
-          date:           row[idx('Date')] || '',
+          trxDate:        row[idx('Trx Date')] || '',
           status:         row[idx('Status')] || '',
           midSubmitted:   row[idx('Submitted to MID')] === 'TRUE' || row[idx('Submitted to MID')] === true,
           notes:          row[idx('Notes')] || '',
           testerEmail:    row[idx('Tester Email')] || '',
           lastUpdatedAt:  row[idx('Last Updated At')] || '',
+          lastContacted:  row[idx('Last Contacted')] || '',
           _sheetRow:      i + 2,
         });
       });
@@ -2549,17 +2551,18 @@ function renderPhoneBrowse() {
   document.getElementById('phone-eligible-count').textContent = `${filtered.length} restaurant${filtered.length === 1 ? '' : 's'} eligible${eligible.length !== filtered.length ? ` (of ${eligible.length})` : ''}`;
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants right now.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants right now.</td></tr>';
     return;
   }
 
   tbody.innerHTML = filtered.map(s => {
     const cardTest = (card) => phoneByCard[`${s.id}|${card}`] || {};
     const allTests = s.cards.map(c => cardTest(c)).filter(x => x && (x.status || x.amount));
-    // Restaurant-level status/date/notes: take from any existing card row (they're kept in sync)
+    // Restaurant-level fields: take from any existing card row (kept in sync via denormalization)
     const anyTest = allTests[0] || {};
     const restoStatus = anyTest.status || 'New';
-    const restoDate = anyTest.date || '';
+    const restoLastContacted = anyTest.lastContacted || '';
+    const restoTrxDate = anyTest.trxDate || '';
     const restoNotes = anyTest.notes || '';
     const allDone = s.cards.length > 0 && PHONE_BLOCKING_STATUSES.includes(restoStatus);
     const rowBg = allDone ? 'background:#f0faf4;' : '';
@@ -2584,7 +2587,6 @@ function renderPhoneBrowse() {
           <div style="min-width:0;flex:1;">
             <div style="font-weight:600;font-size:13px;">${s.name}</div>
             <div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;">ID: ${s.id} · ${s.market}</div>
-            <div style="font-size:11px;color:var(--text-3);">${s.addr}</div>
           </div>
           <div style="text-align:right;white-space:nowrap;">
             <span style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:${prioBg};color:${prioColor};font-family:'DM Mono',monospace;letter-spacing:0.04em;text-transform:uppercase;">${s.priority}</span>
@@ -2601,7 +2603,8 @@ function renderPhoneBrowse() {
           ${PHONE_STATUSES.filter(x => x !== 'New').map(st => `<option value="${st}" ${restoStatus === st ? 'selected' : ''}>${st}</option>`).join('')}
         </select>
       </td>
-      <td style="padding:6px;${rowBg}"><input type="date" value="${restoDate}" onchange="updatePhoneRestaurant(${s.id}, 'date', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
+      <td style="padding:6px;${rowBg}"><input type="date" value="${restoLastContacted}" onchange="updatePhoneRestaurant(${s.id}, 'lastContacted', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
+      <td style="padding:6px;${rowBg}"><input type="date" value="${restoTrxDate}" onchange="updatePhoneRestaurant(${s.id}, 'trxDate', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
       <td style="padding:6px;${rowBg}"><textarea onblur="updatePhoneRestaurant(${s.id}, 'notes', this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:100%;min-height:50px;resize:vertical;box-sizing:border-box;">${restoNotes}</textarea></td>
     </tr>`;
   }).join('');
@@ -2618,54 +2621,44 @@ async function updatePhoneCard(restaurantId, card, field, value) {
   const cardInfo = PHONE_TEST_CARDS[card] || {};
 
   if (!t) {
-    // Create a new row
     const row = {
       restaurantName: s.name,
       restaurantId: restaurantId,
       cardNetwork: network,
       cardId: cardInfo.cardId || '',
       amount: '',
-      date: '',
+      trxDate: '',
       status: 'New',
       midSubmitted: false,
       notes: '',
       testerEmail: userProfile.email,
       lastUpdatedAt: stamp,
+      lastContacted: '',
     };
     row[field] = value;
-    // If status was set, also stamp date with today (per-card)
-    if (field === 'status' && value && !row.date) row.date = new Date().toISOString().slice(0,10);
     try {
       await appendToSheet('Phone Tests', [
         row.restaurantName, row.restaurantId, row.cardNetwork, row.cardId,
-        row.amount, row.date, row.status, row.midSubmitted ? 'TRUE' : 'FALSE',
-        row.notes, row.testerEmail, row.lastUpdatedAt
+        row.amount, row.trxDate, row.status, row.midSubmitted ? 'TRUE' : 'FALSE',
+        row.notes, row.testerEmail, row.lastUpdatedAt, row.lastContacted
       ]);
       await loadSpots();
     } catch(e) { console.error('Failed to create phone test row:', e); alert('Failed to save: ' + e.message); }
     return;
   }
 
-  // Update existing row
   t[field] = value;
   t.testerEmail = userProfile.email;
   t.lastUpdatedAt = stamp;
-  // If status is being set and date is empty, stamp today
-  if (field === 'status' && value && !t.date) {
-    t.date = new Date().toISOString().slice(0,10);
-  }
   const fieldToCol = {
-    amount: 'E', date: 'F', status: 'G',
-    midSubmitted: 'H', notes: 'I',
+    amount: 'E', trxDate: 'F', status: 'G',
+    midSubmitted: 'H', notes: 'I', lastContacted: 'L',
   };
   const col = fieldToCol[field];
   if (!col || !t._sheetRow) return;
   try {
     const writeVal = field === 'midSubmitted' ? (value ? 'TRUE' : 'FALSE') : value;
     await updateSheetCell(`Phone Tests!${col}${t._sheetRow}`, writeVal);
-    if (field === 'status' && t.date) {
-      await updateSheetCell(`Phone Tests!F${t._sheetRow}`, t.date);
-    }
     await updateSheetCell(`Phone Tests!J${t._sheetRow}`, userProfile.email);
     await updateSheetCell(`Phone Tests!K${t._sheetRow}`, stamp);
     if (field === 'status') await loadSpots();
@@ -2678,17 +2671,16 @@ async function updatePhoneCard(restaurantId, card, field, value) {
 async function updatePhoneRestaurant(restaurantId, field, value) {
   const s = spots.find(r => r.id === restaurantId);
   if (!s) return;
-  const fieldToCol = { date: 'F', status: 'G', notes: 'I' };
+  const fieldToCol = { trxDate: 'F', status: 'G', notes: 'I', lastContacted: 'L' };
   const col = fieldToCol[field];
   if (!col) return;
   const stamp = new Date().toISOString();
 
   try {
-    // Ensure a row exists for each needed card
+    // Ensure a row exists for each needed card; update the field on all of them
     for (const card of s.cards) {
       let t = phoneTests.find(x => x.restaurantId === restaurantId && x.card === card);
       if (!t) {
-        // Create new row with this field set
         const cardInfo = PHONE_TEST_CARDS[card] || {};
         const network = card.toUpperCase();
         const newRow = {
@@ -2697,27 +2689,21 @@ async function updatePhoneRestaurant(restaurantId, field, value) {
           cardNetwork: network,
           cardId: cardInfo.cardId || '',
           amount: '',
-          date: field === 'date' ? value : (field === 'status' && value ? new Date().toISOString().slice(0,10) : ''),
+          trxDate: field === 'trxDate' ? value : '',
           status: field === 'status' ? value : 'New',
           midSubmitted: false,
           notes: field === 'notes' ? value : '',
           testerEmail: userProfile.email,
           lastUpdatedAt: stamp,
+          lastContacted: field === 'lastContacted' ? value : '',
         };
         await appendToSheet('Phone Tests', [
           newRow.restaurantName, newRow.restaurantId, newRow.cardNetwork, newRow.cardId,
-          newRow.amount, newRow.date, newRow.status, newRow.midSubmitted ? 'TRUE' : 'FALSE',
-          newRow.notes, newRow.testerEmail, newRow.lastUpdatedAt
+          newRow.amount, newRow.trxDate, newRow.status, newRow.midSubmitted ? 'TRUE' : 'FALSE',
+          newRow.notes, newRow.testerEmail, newRow.lastUpdatedAt, newRow.lastContacted
         ]);
       } else if (t._sheetRow) {
-        // Update existing row's specific cell
         await updateSheetCell(`Phone Tests!${col}${t._sheetRow}`, value);
-        // If status set and date empty, stamp today
-        if (field === 'status' && value && !t.date) {
-          const today = new Date().toISOString().slice(0,10);
-          await updateSheetCell(`Phone Tests!F${t._sheetRow}`, today);
-          t.date = today;
-        }
         await updateSheetCell(`Phone Tests!J${t._sheetRow}`, userProfile.email);
         await updateSheetCell(`Phone Tests!K${t._sheetRow}`, stamp);
         t[field] = value;
@@ -2725,7 +2711,6 @@ async function updatePhoneRestaurant(restaurantId, field, value) {
         t.lastUpdatedAt = stamp;
       }
     }
-    // Reload to refresh state and (for status) recompute card-blocking
     await loadSpots();
   } catch(e) { console.error(e); alert('Failed to save: ' + e.message); }
 }
@@ -2750,7 +2735,7 @@ function renderPhoneAdmin() {
     const stat = t.status || 'New';
     const done = PHONE_BLOCKING_STATUSES.includes(stat);
     return `<tr style="${done ? 'background:#f0faf4;' : ''}">
-      <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${t.date || (t.lastUpdatedAt ? t.lastUpdatedAt.slice(0,10) : '—')}</td>
+      <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${t.trxDate || (t.lastUpdatedAt ? t.lastUpdatedAt.slice(0,10) : '—')}</td>
       <td style="font-size:13px;font-weight:500;">${t.restaurantName}</td>
       <td style="font-size:12px;color:var(--text-3);font-family:'DM Mono',monospace;">${t.restaurantId}</td>
       <td style="font-size:11px;font-weight:600;font-family:'DM Mono',monospace;letter-spacing:0.04em;">${t.cardNetwork}</td>
@@ -2772,7 +2757,7 @@ async function updatePhoneAdminField(idx, field, value) {
   const t = phoneTests[idx];
   if (!t || !t._sheetRow) return;
   t[field] = value;
-  const fieldToCol = { amount: 'E', date: 'F', status: 'G', midSubmitted: 'H', notes: 'I' };
+  const fieldToCol = { amount: 'E', trxDate: 'F', status: 'G', midSubmitted: 'H', notes: 'I', lastContacted: 'L' };
   const col = fieldToCol[field];
   if (!col) return;
   const writeVal = field === 'midSubmitted' ? (value ? 'TRUE' : 'FALSE') : value;
