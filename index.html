@@ -143,6 +143,7 @@
   <div class="tab-bar">
     <button class="tab active" onclick="switchTab('browse')">Sign up</button>
     <button class="tab" onclick="switchTab('postvisit')">Post-visit</button>
+    <button class="tab" id="phone-tab" style="display:none;" onclick="switchTab('phone')">Phone tests</button>
     <button class="tab" id="admin-tab" style="display:none;" onclick="switchTab('admin')">Admin</button>
     <button class="tab" id="log-tab" style="display:none;" onclick="switchTab('log')">Audit Log</button>
   </div>
@@ -325,6 +326,48 @@
     </div>
   </div>
 
+  <div id="view-phone" class="view">
+    <div class="container">
+      <h2 style="font-size:20px;font-weight:600;letter-spacing:-0.01em;margin-bottom:0.5rem;">Phone tests</h2>
+      <p style="font-size:14px;color:var(--text-2);margin-bottom:1.5rem;">Call restaurants and run test transactions. Showing only unclaimed cards. Filters configured in the Config tab of the source sheet.</p>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div style="font-size:13px;color:var(--text-2);" id="phone-eligible-count">0 restaurants eligible</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="phone-market-filter" onchange="renderPhoneBrowse()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);"><option value="">All cities</option></select>
+          <input id="phone-name-filter" type="text" placeholder="Filter by restaurant…" oninput="renderPhoneBrowse()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:200px;">
+        </div>
+      </div>
+
+      <div id="phone-form-container" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:1.5rem;">
+        <div style="font-size:13px;color:var(--text-2);margin-bottom:8px;" id="phone-form-restaurant"></div>
+        <h3 style="font-size:16px;font-weight:600;margin-bottom:14px;" id="phone-form-title">Run test transaction</h3>
+        <div style="background:#F0FAF4;border:1px solid #6FD4A4;border-radius:8px;padding:10px 14px;font-size:13px;color:#1A5C36;margin-bottom:14px;" id="phone-form-card-info"></div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:14px;">
+          <div>
+            <label style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Amount ($)</label>
+            <input type="number" step="0.01" id="phone-amount" placeholder="0.00" style="font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);width:100%;margin-top:4px;">
+          </div>
+          <div>
+            <label style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Test date</label>
+            <input type="date" id="phone-date" style="font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);width:100%;margin-top:4px;">
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Notes (optional)</label>
+          <textarea id="phone-notes" rows="3" placeholder="Anything to remember about this call…" style="font-family:'DM Sans',sans-serif;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);width:100%;margin-top:4px;resize:vertical;"></textarea>
+        </div>
+        <div id="phone-form-error" style="color:#dc2626;font-size:13px;margin-bottom:10px;display:none;"></div>
+        <div style="display:flex;gap:10px;">
+          <button id="phone-submit-btn" class="btn-primary" onclick="submitPhoneTest(this)">Log test</button>
+          <button class="btn-ghost" onclick="cancelPhoneForm()">Cancel</button>
+        </div>
+      </div>
+
+      <div id="phone-browse-list"></div>
+    </div>
+  </div>
+
   <div id="view-admin" class="view">
     <div style="background:#FFF8EC;border:1px solid #F5C97A;border-radius:8px;padding:12px 16px;font-size:14px;color:#7A4E00;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
       <strong>🔒 Read only — this tab is managed by Olivia, please don't make any changes.</strong>
@@ -458,6 +501,43 @@
         </thead>
         <tbody id="pv-admin-tbody">
           <tr><td colspan="19" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:24px 0 12px;">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;">Phone tests</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="phone-admin-status-filter" onchange="renderPhoneAdmin()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);">
+          <option value="">All statuses</option>
+          <option value="New">New</option>
+          <option value="No answer">No answer</option>
+          <option value="Call Scheduled">Call Scheduled</option>
+          <option value="MIDs run">MIDs run</option>
+          <option value="Trx Submitted: DONE!">Trx Submitted: DONE!</option>
+        </select>
+        <input id="phone-admin-name-filter" type="text" placeholder="Filter by restaurant…" oninput="renderPhoneAdmin()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:180px;">
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Test date</th>
+            <th>Tester</th>
+            <th>Restaurant</th>
+            <th>City</th>
+            <th>Card</th>
+            <th>Last 4</th>
+            <th>Amount</th>
+            <th>Rev value</th>
+            <th>Tester notes</th>
+            <th>Status</th>
+            <th>Admin notes</th>
+          </tr>
+        </thead>
+        <tbody id="phone-admin-tbody">
+          <tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--text-3);">No phone tests yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -620,6 +700,18 @@ const ALLOWED_EMAILS  = [
   'padmaraosf@gmail.com',
   'oliviapassafiume@gmail.com',
 ];
+// People allowed to access the Phone Tests tab.
+const PHONE_TESTERS = ['opassafiume@seatedapp.io', 'prao@seatedapp.io', 'hxiao@seatedapp.io', 'sduarte@seatedapp.io'];
+// Test card metadata per network.
+const PHONE_TEST_CARDS = {
+  'Visa':       { last4: '3596', cardId: 'f9a212e7-14c7-473a-8efc-ba0061f5dede' },
+  'Mastercard': { last4: '5191', cardId: '36678dc1-4771-4df4-8141-c12f6cb6f8ed' },
+  'Amex':       { last4: '1036', cardId: 'ef21ed01-d90f-47a8-80d4-5ba20953876a' },
+};
+// Statuses that mean the card is no longer available for in-person claim.
+const PHONE_BLOCKING_STATUSES = ['Call Scheduled', 'MIDs run', 'Trx Submitted: DONE!'];
+const PHONE_STATUSES = ['New', 'No answer', 'Call Scheduled', 'MIDs run', 'Trx Submitted: DONE!'];
+const PRIORITY_RANK = { 'Normal': 0, 'Medium': 1, 'High': 2 };
 
 async function afterAuth() {
   document.getElementById('user-pic').src = userProfile.picture || '';
@@ -630,6 +722,9 @@ async function afterAuth() {
   if (ADMIN_EMAILS.includes(userProfile.email.toLowerCase())) {
     document.getElementById('admin-tab').style.display = 'flex';
     document.getElementById('log-tab').style.display = 'flex';
+  }
+  if (PHONE_TESTERS.includes(userProfile.email.toLowerCase())) {
+    document.getElementById('phone-tab').style.display = 'flex';
   }
   await loadConfigFromSheet();
   await ensureDataTabs();
@@ -760,6 +855,8 @@ async function loadRestaurantsFromSheet() {
 let spots = [];
 let pvReports = [];
 let claimLog = [];
+let phoneTests = [];
+let phoneSelectedRestaurant = null; // { id, name, card }
 let selectedId = null;
 let selectedCard = null;
 
@@ -798,6 +895,7 @@ async function ensureDataTabs() {
     const tabs = [
       { title: 'Claims',     headers: ['Restaurant ID','Restaurant Name','Address','City','Card','Status','Claimant Name','Claimant Email','Relation','Employee Email','Claimed At','Reimb','Rev Value'] },
       { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received','Amount Venmod','Date Venmod','Venmo Fee','MID Export','Rev Value'] },
+      { title: 'Phone Tests', headers: ['Submitted At','Tester Name','Tester Email','Restaurant ID','Restaurant Name','Address','City','Card Network','Card Last 4','Card ID','Amount','Test Date','Notes','Status','Admin Notes','Rev Value'] },
       { title: 'Claim Log',  headers: ['Logged At','Name','Email','Relation','Restaurant','Address','City','Card','Reimb','Restaurant ID'] },
     ];
     const toCreate = tabs.filter(t => !existing.includes(t.title));
@@ -923,7 +1021,38 @@ async function loadAllDataFromSheets() {
     }
   } catch(e) { console.error('Failed to load Claim Log tab:', e); }
 
-  return { claimsMap, pvReports: loadedPvReports, claimLog: loadedClaimLog };
+  // ── Phone Tests ──
+  const loadedPhoneTests = [];
+  try {
+    const vals = await fetchSheetValues('Phone Tests!A:P');
+    if (vals.length > 1) {
+      const h = vals[0]; const idx = k => h.indexOf(k);
+      vals.slice(1).forEach((row, i) => {
+        if (!row[0]) return;
+        loadedPhoneTests.push({
+          submittedAt:    row[idx('Submitted At')] || '',
+          testerName:     row[idx('Tester Name')] || '',
+          testerEmail:    row[idx('Tester Email')] || '',
+          restaurantId:   parseInt(row[idx('Restaurant ID')]) || 0,
+          restaurantName: row[idx('Restaurant Name')] || '',
+          address:        row[idx('Address')] || '',
+          city:           row[idx('City')] || '',
+          card:           row[idx('Card Network')] || '',
+          last4:          row[idx('Card Last 4')] || '',
+          cardId:         row[idx('Card ID')] || '',
+          amount:         row[idx('Amount')] || '',
+          testDate:       row[idx('Test Date')] || '',
+          notes:          row[idx('Notes')] || '',
+          status:         row[idx('Status')] || 'New',
+          adminNote:      row[idx('Admin Notes')] || '',
+          revValue:       row[idx('Rev Value')] !== '' && row[idx('Rev Value')] != null ? parseFloat(row[idx('Rev Value')]) : null,
+          _sheetRow:      i + 2,
+        });
+      });
+    }
+  } catch(e) { console.error('Failed to load Phone Tests tab:', e); }
+
+  return { claimsMap, pvReports: loadedPvReports, claimLog: loadedClaimLog, phoneTests: loadedPhoneTests };
 }
 
 async function notifySaveFailure(reason) {
@@ -1011,16 +1140,35 @@ function renderMap() {
 
 async function loadSpots() {
   await loadRestaurantsFromSheet();
-  const { claimsMap, pvReports: pv, claimLog: cl } = await loadAllDataFromSheets();
+  const { claimsMap, pvReports: pv, claimLog: cl, phoneTests: pt } = await loadAllDataFromSheets();
   pvReports = pv;
   claimLog = cl;
+  phoneTests = pt || [];
+
+  // Build map of (restaurantId|card) → blocking phone test
+  const phoneBlockedMap = {};
+  phoneTests.forEach(t => {
+    if (PHONE_BLOCKING_STATUSES.includes(t.status)) {
+      phoneBlockedMap[`${t.restaurantId}|${t.card}`] = t;
+    }
+  });
 
   spots = RESTAURANTS.map(r => {
     const cardSlots = {};
     r.cards.forEach(card => {
-      cardSlots[card] = (claimsMap[r.id] && claimsMap[r.id][card])
-        ? claimsMap[r.id][card]
-        : { status: 'Open', claimant: null };
+      const phoneBlock = phoneBlockedMap[`${r.id}|${card}`];
+      if (phoneBlock) {
+        // Card was claimed via phone test — block from in-person flow
+        cardSlots[card] = {
+          status: 'Claimed',
+          phoneBlocked: true,
+          claimant: { name: phoneBlock.testerName, email: phoneBlock.testerEmail, rel: 'Phone test', claimedAt: phoneBlock.submittedAt, reimb: 0, revValue: phoneBlock.revValue, restaurantName: r.name, restaurantAddr: r.addr, restaurantMarket: r.market }
+        };
+      } else {
+        cardSlots[card] = (claimsMap[r.id] && claimsMap[r.id][card])
+          ? claimsMap[r.id][card]
+          : { status: 'Open', claimant: null };
+      }
     });
     // Preserve claims on cards that were dropped from the Restaurants sheet
     if (claimsMap[r.id]) {
@@ -1040,6 +1188,10 @@ async function loadSpots() {
   updateBrowseCount();
   renderPvReports();
   renderClaimLog();
+  populatePhoneMarketFilter();
+  renderPhoneBrowse();
+  renderPhoneAdmin();
+  applyPhoneTabVisibility();
 }
 
 async function savePvReports() {
@@ -2254,6 +2406,224 @@ function switchTab(tab) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
   document.getElementById(`view-${tab}`).classList.add('active');
+}
+
+// ──────────────────────────────────────────────────────────────
+// Phone tests
+// ──────────────────────────────────────────────────────────────
+
+function applyPhoneTabVisibility() {
+  if (userProfile && PHONE_TESTERS.includes(userProfile.email.toLowerCase())) {
+    document.getElementById('phone-tab').style.display = 'flex';
+  } else {
+    document.getElementById('phone-tab').style.display = 'none';
+  }
+}
+
+function getPhoneEligibleSpots() {
+  // Read filter config from Config tab (set by user). All optional.
+  const excludedCities = String(CONFIG.PHONE_TEST_EXCLUDED_CITIES || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const minGmv = parseFloat(CONFIG.PHONE_TEST_MIN_GMV) || 0;
+  const minPriority = (CONFIG.PHONE_TEST_MIN_PRIORITY || 'Normal').trim();
+  const topX = parseInt(CONFIG.PHONE_TEST_TOP_X) || 0;
+  const minPrioRank = PRIORITY_RANK[minPriority] != null ? PRIORITY_RANK[minPriority] : 0;
+
+  let eligible = spots.filter(s => {
+    // Must have at least one Open card
+    const hasOpen = s.cards.some(card => s.cardSlots[card]?.status === 'Open');
+    if (!hasOpen) return false;
+    // City exclusion
+    if (excludedCities.includes((s.market || '').toLowerCase())) return false;
+    // GMV threshold
+    if ((s.gmv || 0) < minGmv) return false;
+    // Priority threshold
+    const sRank = PRIORITY_RANK[s.priority] != null ? PRIORITY_RANK[s.priority] : 0;
+    if (sRank < minPrioRank) return false;
+    return true;
+  });
+
+  // Sort by GMV desc, then optionally cap to top X
+  eligible.sort((a, b) => (b.gmv || 0) - (a.gmv || 0));
+  if (topX > 0) eligible = eligible.slice(0, topX);
+  return eligible;
+}
+
+function populatePhoneMarketFilter() {
+  const sel = document.getElementById('phone-market-filter');
+  if (!sel) return;
+  const current = sel.value;
+  const markets = [...new Set(spots.map(r => r.market).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All cities</option>' + markets.map(m => `<option value="${m}">${m}</option>`).join('');
+  sel.value = current;
+}
+
+function renderPhoneBrowse() {
+  const listEl = document.getElementById('phone-browse-list');
+  if (!listEl) return;
+  const eligible = getPhoneEligibleSpots();
+  const marketFilter = document.getElementById('phone-market-filter')?.value || '';
+  const nameFilter = (document.getElementById('phone-name-filter')?.value || '').toLowerCase().trim();
+  const filtered = eligible.filter(s =>
+    (!marketFilter || s.market === marketFilter) &&
+    (!nameFilter || (s.name || '').toLowerCase().includes(nameFilter))
+  );
+  document.getElementById('phone-eligible-count').textContent = `${filtered.length} restaurant${filtered.length === 1 ? '' : 's'} eligible (of ${eligible.length} total)`;
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:2rem;text-align:center;color:var(--text-3);">No eligible restaurants right now.</div>';
+    return;
+  }
+
+  // Group by market
+  const byMarket = {};
+  filtered.forEach(s => { (byMarket[s.market] = byMarket[s.market] || []).push(s); });
+
+  listEl.innerHTML = Object.entries(byMarket).map(([market, items]) => `
+    <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-family:'DM Mono',monospace;margin:18px 0 8px;">${market}</div>
+    ${items.map(s => {
+      const openCards = s.cards.filter(c => s.cardSlots[c]?.status === 'Open');
+      const cardBtns = openCards.map(c => `<button class="btn-primary" style="margin:0 4px;font-size:12px;padding:6px 12px;" onclick="openPhoneForm(${s.id}, '${c}')">Test ${c}</button>`).join('');
+      const totalRev = openCards.reduce((sum, c) => sum + (s.rev && s.rev[c] || 0), 0);
+      return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div style="font-weight:500;font-size:14px;">${s.name}</div>
+          <div style="font-size:12px;color:var(--text-3);font-family:'DM Mono',monospace;">${s.addr}</div>
+          <div style="font-size:11px;color:var(--text-2);margin-top:4px;">Priority: ${s.priority} · GMV $${s.gmv?.toLocaleString() || 0}/mo · Open rev: $${totalRev.toLocaleString()}/mo</div>
+        </div>
+        <div>${cardBtns}</div>
+      </div>`;
+    }).join('')}
+  `).join('');
+}
+
+function openPhoneForm(restaurantId, card) {
+  const s = spots.find(r => r.id === restaurantId);
+  if (!s) return;
+  phoneSelectedRestaurant = { id: restaurantId, name: s.name, addr: s.addr, market: s.market, card, rev: (s.rev && s.rev[card]) || 0 };
+  const cardInfo = PHONE_TEST_CARDS[card];
+  document.getElementById('phone-form-container').style.display = 'block';
+  document.getElementById('phone-form-restaurant').textContent = `${s.name} · ${s.addr} · ${s.market}`;
+  document.getElementById('phone-form-title').textContent = `Test ${card} transaction`;
+  document.getElementById('phone-form-card-info').innerHTML = `<strong>Card:</strong> ${card} · Last 4: <span style="font-family:'DM Mono',monospace;">${cardInfo?.last4 || '—'}</span> · ID: <span style="font-family:'DM Mono',monospace;font-size:11px;">${cardInfo?.cardId || '—'}</span>`;
+  document.getElementById('phone-amount').value = '';
+  document.getElementById('phone-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('phone-notes').value = '';
+  document.getElementById('phone-form-error').style.display = 'none';
+  document.getElementById('phone-form-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cancelPhoneForm() {
+  phoneSelectedRestaurant = null;
+  document.getElementById('phone-form-container').style.display = 'none';
+}
+
+let _phoneSubmitting = false;
+async function submitPhoneTest(btn) {
+  if (_phoneSubmitting) return;
+  if (!phoneSelectedRestaurant) { alert('No restaurant selected.'); return; }
+  const amount = document.getElementById('phone-amount').value.trim();
+  const testDate = document.getElementById('phone-date').value;
+  const notes = document.getElementById('phone-notes').value.trim();
+  const errEl = document.getElementById('phone-form-error');
+  if (!amount || !testDate) {
+    errEl.textContent = 'Amount and test date are required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  _phoneSubmitting = true;
+  btn.disabled = true;
+  btn.textContent = 'Logging…';
+  try {
+    const card = phoneSelectedRestaurant.card;
+    const cardInfo = PHONE_TEST_CARDS[card] || {};
+    const submittedAt = new Date().toISOString();
+    await appendToSheet('Phone Tests', [
+      submittedAt,
+      userProfile.name,
+      userProfile.email,
+      phoneSelectedRestaurant.id,
+      phoneSelectedRestaurant.name,
+      phoneSelectedRestaurant.addr,
+      phoneSelectedRestaurant.market,
+      card,
+      cardInfo.last4 || '',
+      cardInfo.cardId || '',
+      parseFloat(amount).toFixed(2),
+      testDate,
+      notes,
+      'New',
+      '',
+      phoneSelectedRestaurant.rev || ''
+    ]);
+    cancelPhoneForm();
+    await loadSpots();
+    alert('✅ Test logged. Update status in Admin → Phone tests when ready.');
+  } catch(e) {
+    errEl.textContent = 'Failed to save: ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    _phoneSubmitting = false;
+    btn.disabled = false;
+    btn.textContent = 'Log test';
+  }
+}
+
+async function updatePhoneTestStatus(idx, value) {
+  const t = phoneTests[idx];
+  if (!t) return;
+  t.status = value;
+  if (t._sheetRow) {
+    try { await updateSheetCell(`Phone Tests!N${t._sheetRow}`, value); } catch(e) { console.error(e); }
+  }
+  // Reload to update card-blocking logic
+  await loadSpots();
+}
+
+async function updatePhoneTestNote(idx, value) {
+  const t = phoneTests[idx];
+  if (!t) return;
+  t.adminNote = value;
+  if (t._sheetRow) {
+    try { await updateSheetCell(`Phone Tests!O${t._sheetRow}`, value); } catch(e) { console.error(e); }
+  }
+}
+
+function renderPhoneAdmin() {
+  const tbody = document.getElementById('phone-admin-tbody');
+  if (!tbody) return;
+  const statusFilter = document.getElementById('phone-admin-status-filter')?.value || '';
+  const nameFilter = (document.getElementById('phone-admin-name-filter')?.value || '').toLowerCase().trim();
+  let filtered = phoneTests.filter(t =>
+    (!statusFilter || (t.status || 'New') === statusFilter) &&
+    (!nameFilter || (t.restaurantName || '').toLowerCase().includes(nameFilter))
+  );
+  filtered.sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter || statusFilter ? 'No phone tests match your filters' : 'No phone tests yet'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(t => {
+    const idx = phoneTests.indexOf(t);
+    const done = PHONE_BLOCKING_STATUSES.includes(t.status);
+    return `<tr style="${done ? 'background:#f0faf4;' : ''}">
+      <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${t.testDate || t.submittedAt}</td>
+      <td><div style="font-weight:500;font-size:13px;">${t.testerName}</div><div style="font-size:11px;color:var(--text-3);">${t.testerEmail}</div></td>
+      <td style="font-size:13px;">${t.restaurantName}</td>
+      <td style="font-size:12px;color:var(--text-2);">${t.city || '—'}</td>
+      <td>${cardBadge(t.card)}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${t.last4 || '—'}</td>
+      <td style="font-size:13px;font-family:'DM Mono',monospace;">$${parseFloat(t.amount || 0).toFixed(2)}</td>
+      <td style="font-size:13px;font-weight:600;color:#1A4A8A;">${t.revValue != null ? '$' + Math.round(t.revValue).toLocaleString() : '—'}</td>
+      <td style="font-size:12px;color:var(--text-2);">${t.notes || '—'}</td>
+      <td>
+        <select onchange="updatePhoneTestStatus(${idx}, this.value)" style="font-size:12px;padding:4px 8px;width:auto;">
+          ${PHONE_STATUSES.map(s => `<option value="${s}" ${(t.status||'New')===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+      <td><textarea onblur="updatePhoneTestNote(${idx}, this.value)" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:150px;min-height:50px;resize:vertical;">${t.adminNote || ''}</textarea></td>
+    </tr>`;
+  }).join('');
 }
 
 // loadSpots() is triggered by afterAuth() once sign-in completes.
