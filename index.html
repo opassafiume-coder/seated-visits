@@ -1620,6 +1620,8 @@ function renderAdmin() {
     // Use all keys in cardSlots (not just s.cards) so preserved claims on dropped cards still show
     Object.keys(s.cardSlots).forEach(card => {
       const slot = s.cardSlots[card];
+      // Phone-blocked slots belong to the Phone Tests admin section, not regular Claims
+      if (slot.phoneBlocked) return;
       const c = slot.claimant;
       const nameMatch = !nameFilter || (c && (c.name || '').toLowerCase().includes(nameFilter));
       if ((!mFilter || s.market === mFilter) && (!sFilter || slot.status === sFilter) && nameMatch) {
@@ -2521,10 +2523,12 @@ function renderPhoneBrowse() {
   });
 
   // Compute impact stats
+  // "Called" = restaurant has been actually contacted (lastContacted set OR status is not New)
   const calledIds = new Set();
   let midsCount = 0, doneCount = 0, revCaptured = 0;
   phoneTests.forEach(t => {
-    calledIds.add(t.restaurantId);
+    const trulyCalled = t.lastContacted || (t.status && t.status !== 'New' && t.status !== '');
+    if (trulyCalled) calledIds.add(t.restaurantId);
     if (t.status === 'MIDs run') midsCount++;
     if (t.status === 'Trx Submitted: DONE!') {
       doneCount++;
