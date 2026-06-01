@@ -347,17 +347,16 @@
         <table class="admin-table" id="phone-directory-table">
           <thead>
             <tr>
-              <th style="min-width:240px;">Restaurant</th>
+              <th style="min-width:280px;">Restaurant</th>
               <th>Visa</th>
               <th>Mastercard</th>
               <th>Amex</th>
-              <th style="min-width:160px;">Notes</th>
               <th>Last contacted</th>
-              <th>Priority / GMV</th>
+              <th style="min-width:180px;">Notes</th>
             </tr>
           </thead>
           <tbody id="phone-directory-tbody">
-            <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants</td></tr>
+            <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants</td></tr>
           </tbody>
         </table>
       </div>
@@ -2468,7 +2467,7 @@ function renderPhoneBrowse() {
   document.getElementById('phone-eligible-count').textContent = `${filtered.length} restaurant${filtered.length === 1 ? '' : 's'} eligible${eligible.length !== filtered.length ? ` (of ${eligible.length})` : ''}`;
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants right now.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants right now.</td></tr>';
     return;
   }
 
@@ -2497,18 +2496,27 @@ function renderPhoneBrowse() {
       </td>`;
     };
     const lastContacted = t.lastContacted || '';
+    const prioColor = s.priority === 'High' ? '#8C2418' : (s.priority === 'Medium' ? '#7A4E00' : '#1A5C36');
+    const prioBg    = s.priority === 'High' ? '#FFF0EE' : (s.priority === 'Medium' ? '#FFF8EC' : '#F0FAF4');
     return `<tr>
       <td>
-        <div style="font-weight:600;font-size:13px;">${s.name}</div>
-        <div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;">ID: ${s.id} · ${s.market}</div>
-        <div style="font-size:11px;color:var(--text-3);">${s.addr}</div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+          <div style="min-width:0;flex:1;">
+            <div style="font-weight:600;font-size:13px;">${s.name}</div>
+            <div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;">ID: ${s.id} · ${s.market}</div>
+            <div style="font-size:11px;color:var(--text-3);">${s.addr}</div>
+          </div>
+          <div style="text-align:right;white-space:nowrap;">
+            <span style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:${prioBg};color:${prioColor};font-family:'DM Mono',monospace;letter-spacing:0.04em;text-transform:uppercase;">${s.priority}</span>
+            <div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;margin-top:4px;">$${s.gmv?.toLocaleString() || 0}/mo</div>
+          </div>
+        </div>
       </td>
       ${cardCell('Visa')}
       ${cardCell('Mastercard')}
       ${cardCell('Amex')}
-      <td><textarea onblur="updatePhoneRow(${s.id}, 'notes', this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:160px;min-height:50px;resize:vertical;">${t.notes || ''}</textarea></td>
       <td><input type="date" value="${lastContacted}" onchange="updatePhoneRow(${s.id}, 'lastContacted', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);"></td>
-      <td style="font-size:11px;color:var(--text-2);"><div>${s.priority}</div><div style="font-family:'DM Mono',monospace;color:var(--text-3);">$${s.gmv?.toLocaleString() || 0}</div></td>
+      <td><textarea onblur="updatePhoneRow(${s.id}, 'notes', this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:180px;min-height:50px;resize:vertical;">${t.notes || ''}</textarea></td>
     </tr>`;
   }).join('');
 }
