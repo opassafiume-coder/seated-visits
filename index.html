@@ -599,9 +599,12 @@ function onCredentialResponse(resp) {
     }
     accessToken = tokenResp.access_token;
     // @seatedapp.io employees are always allowed in.
+    // Specific external emails in ALLOWED_EXTERNAL_EMAILS are also allowed in.
     // Everyone else must have view access to the sheet.
-    const isSeatedEmployee = userProfile.email.toLowerCase().endsWith('@seatedapp.io');
-    if (!isSeatedEmployee) {
+    const email = userProfile.email.toLowerCase();
+    const isSeatedEmployee = email.endsWith('@seatedapp.io');
+    const isAllowedExternal = ALLOWED_EXTERNAL_EMAILS.includes(email);
+    if (!isSeatedEmployee && !isAllowedExternal) {
       try {
         const testRes = await fetch(
           `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=spreadsheetId`,
@@ -623,6 +626,11 @@ function onCredentialResponse(resp) {
 }
 
 const ADMIN_EMAILS    = ['opassafiume@seatedapp.io','prao@seatedapp.io','hxiao@seatedapp.io'];
+// Non-seatedapp.io emails that should still be allowed into the app.
+// Add lowercase emails here. They won't need sheet access.
+const ALLOWED_EXTERNAL_EMAILS = [
+  // 'someone@example.com',
+];
 
 async function afterAuth() {
   document.getElementById('user-pic').src = userProfile.picture || '';
