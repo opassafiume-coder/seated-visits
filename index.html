@@ -591,6 +591,14 @@ function onCredentialResponse(resp) {
     payload = JSON.parse(atob(resp.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
   } catch (e) { return showAuthError('Could not decode sign-in token.'); }
 
+  // Gate: only allow seatedapp.io Workspace users + emails in the allowlist
+  var email = (payload.email || '').toLowerCase();
+  var allowed = payload.hd === REQUIRED_HD || ALLOWED_EMAILS.indexOf(email) >= 0;
+  if (!allowed) {
+    google.accounts.id.disableAutoSelect();
+    return showAuthError('This app is restricted. You signed in as ' + payload.email + '.');
+  }
+
   userProfile = { name: payload.name, email: payload.email, picture: payload.picture };
 
   tokenClient.callback = async (tokenResp) => {
@@ -598,27 +606,6 @@ function onCredentialResponse(resp) {
       return showAuthError('Could not get Sheets access token: ' + (tokenResp.error || 'unknown'));
     }
     accessToken = tokenResp.access_token;
-    // @seatedapp.io employees are always allowed in.
-    // Specific external emails in ALLOWED_EXTERNAL_EMAILS are also allowed in.
-    // Everyone else must have view access to the sheet.
-    const email = userProfile.email.toLowerCase();
-    const isSeatedEmployee = email.endsWith('@seatedapp.io');
-    const isAllowedExternal = ALLOWED_EXTERNAL_EMAILS.includes(email);
-    if (!isSeatedEmployee && !isAllowedExternal) {
-      try {
-        const testRes = await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=spreadsheetId`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-        if (!testRes.ok) {
-          google.accounts.id.disableAutoSelect();
-          accessToken = null;
-          return showAuthError(`You don't have access to this app. Ask Olivia to share the sheet with ${userProfile.email}.`);
-        }
-      } catch (e) {
-        return showAuthError('Could not verify sheet access. Check your connection and try again.');
-      }
-    }
     try { await afterAuth(); }
     catch (e) { showAuthError('Failed to load sheet data: ' + e.message); }
   };
@@ -626,9 +613,10 @@ function onCredentialResponse(resp) {
 }
 
 const ADMIN_EMAILS    = ['opassafiume@seatedapp.io','prao@seatedapp.io','hxiao@seatedapp.io'];
-// Non-seatedapp.io emails that should still be allowed into the app.
-// Add lowercase emails here. They won't need sheet access.
-const ALLOWED_EXTERNAL_EMAILS = [
+// Required Google Workspace hosted domain — everyone with this hd claim is allowed.
+const REQUIRED_HD     = 'seatedapp.io';
+// Non-seatedapp.io emails that should also be allowed into the app (lowercase).
+const ALLOWED_EMAILS  = [
   // 'someone@example.com',
 ];
 
