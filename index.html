@@ -327,14 +327,41 @@
   </div>
 
   <div id="view-phone" class="view">
-    <div class="container" style="max-width:1400px;">
+    <div class="container" style="max-width:none;padding-left:1rem;padding-right:1rem;">
       <h2 style="font-size:20px;font-weight:600;letter-spacing:-0.01em;margin-bottom:0.5rem;">Phone tests directory</h2>
       <p style="font-size:13px;color:var(--text-2);margin-bottom:1rem;">Work through this list. Inline fields auto-save to the sheet. Filters configured in the Config tab of the source sheet.</p>
+
+      <div class="stats-grid" style="margin-bottom:18px;">
+        <div class="stat-card" style="background:#F2F1EE;border-color:#C8C3B8;">
+          <div class="stat-label">Restaurants called</div>
+          <div class="stat-val" id="phone-stat-called">0</div>
+        </div>
+        <div class="stat-card" style="background:#FFF8EC;border-color:#F6A623;">
+          <div class="stat-label" style="color:#7A4E00;">MIDs run</div>
+          <div class="stat-val" id="phone-stat-mids" style="color:#7A4E00;">0</div>
+        </div>
+        <div class="stat-card" style="background:#EDFAF3;border-color:#6FD4A4;">
+          <div class="stat-label" style="color:#1A5C36;">Trx Submitted</div>
+          <div class="stat-val" id="phone-stat-done" style="color:#1A5C36;">0</div>
+        </div>
+        <div class="stat-card" style="background:#EBF3FF;border-color:#7AB1F0;">
+          <div class="stat-label" style="color:#1A4A8A;">Monthly rev captured</div>
+          <div class="stat-val" id="phone-stat-rev" style="color:#1A4A8A;">$0</div>
+        </div>
+      </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <div style="font-size:13px;color:var(--text-2);" id="phone-eligible-count">0 restaurants eligible</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <input id="phone-name-filter" type="text" placeholder="Filter by restaurant…" oninput="renderPhoneBrowse()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:200px;">
+          <input id="phone-name-filter" type="text" placeholder="Filter by restaurant…" oninput="renderPhoneBrowse()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:180px;">
+          <select id="phone-status-filter" onchange="renderPhoneBrowse()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);">
+            <option value="">Any status</option>
+            <option value="New">New / untouched</option>
+            <option value="No answer">No answer</option>
+            <option value="Call Scheduled">Call Scheduled</option>
+            <option value="MIDs run">MIDs run</option>
+            <option value="Trx Submitted: DONE!">Trx Submitted: DONE!</option>
+          </select>
           <select id="phone-sort" onchange="renderPhoneBrowse()" style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-2);">
             <option value="gmv-desc">Highest GMV first</option>
             <option value="last-asc">Least recently called first</option>
@@ -343,16 +370,24 @@
         </div>
       </div>
 
-      <div style="overflow-x:auto;">
-        <table class="admin-table" id="phone-directory-table">
+      <div>
+        <table class="admin-table" id="phone-directory-table" style="table-layout:fixed;width:100%;">
+          <colgroup>
+            <col style="width:28%;">
+            <col style="width:11%;">
+            <col style="width:11%;">
+            <col style="width:11%;">
+            <col style="width:10%;">
+            <col style="width:29%;">
+          </colgroup>
           <thead>
             <tr>
-              <th style="min-width:280px;">Restaurant</th>
+              <th>Restaurant</th>
               <th>Visa</th>
               <th>Mastercard</th>
               <th>Amex</th>
               <th>Last contacted</th>
-              <th style="min-width:180px;">Notes</th>
+              <th>Notes</th>
             </tr>
           </thead>
           <tbody id="phone-directory-tbody">
@@ -2447,12 +2482,52 @@ function renderPhoneBrowse() {
 
   let eligible = getPhoneEligibleSpots();
   const nameFilter = (document.getElementById('phone-name-filter')?.value || '').toLowerCase().trim();
+  const statusFilter = document.getElementById('phone-status-filter')?.value || '';
   const sortBy = document.getElementById('phone-sort')?.value || 'gmv-desc';
-  let filtered = eligible.filter(s => !nameFilter || (s.name || '').toLowerCase().includes(nameFilter));
 
   // Build map: restaurantId → phoneTest row
   const phoneByRest = {};
   phoneTests.forEach(t => { phoneByRest[t.restaurantId] = t; });
+
+  // Apply filters
+  let filtered = eligible.filter(s => {
+    if (nameFilter && !(s.name || '').toLowerCase().includes(nameFilter)) return false;
+    if (statusFilter) {
+      const t = phoneByRest[s.id];
+      const statusesPresent = t ? [t.visaStatus, t.mcStatus, t.amexStatus].filter(Boolean) : [];
+      if (statusFilter === 'New') {
+        // New = none of the needed cards has a non-empty status
+        const needed = s.cards;
+        const cardStatusMap = { 'Visa': t?.visaStatus, 'Mastercard': t?.mcStatus, 'Amex': t?.amexStatus };
+        const anyTouched = needed.some(c => cardStatusMap[c] && cardStatusMap[c] !== '' && cardStatusMap[c] !== 'New');
+        if (anyTouched) return false;
+      } else {
+        if (!statusesPresent.includes(statusFilter)) return false;
+      }
+    }
+    return true;
+  });
+
+  // Compute impact stats (over ALL phone tests, not just filtered eligible)
+  const calledIds = new Set();
+  let midsCount = 0, doneCount = 0, revCaptured = 0;
+  phoneTests.forEach(t => {
+    if (t.lastContacted || t.visaStatus || t.mcStatus || t.amexStatus || t.notes) calledIds.add(t.restaurantId);
+    const cards = [['Visa', t.visaStatus], ['Mastercard', t.mcStatus], ['Amex', t.amexStatus]];
+    cards.forEach(([cardName, stat]) => {
+      if (stat === 'MIDs run') midsCount++;
+      if (stat === 'Trx Submitted: DONE!') {
+        doneCount++;
+        const spot = spots.find(sp => sp.id === t.restaurantId);
+        if (spot && spot.rev && spot.rev[cardName] != null) revCaptured += Number(spot.rev[cardName]) || 0;
+      }
+    });
+  });
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setText('phone-stat-called', calledIds.size);
+  setText('phone-stat-mids', midsCount);
+  setText('phone-stat-done', doneCount);
+  setText('phone-stat-rev', '$' + Math.round(revCaptured).toLocaleString());
 
   // Sort
   if (sortBy === 'gmv-desc') filtered.sort((a, b) => (b.gmv || 0) - (a.gmv || 0));
@@ -2475,22 +2550,19 @@ function renderPhoneBrowse() {
     const t = phoneByRest[s.id] || {};
     const cardCell = (card) => {
       const isNeeded = s.cards.includes(card);
-      if (!isNeeded) return '<td style="color:var(--text-3);font-size:12px;text-align:center;">—</td>';
+      if (!isNeeded) return '<td style="color:var(--text-3);font-size:12px;text-align:center;padding:6px;">—</td>';
       const slot = s.cardSlots[card];
-      // If card is claimed by an in-person flow (not phone), grey it out
       if (slot && slot.status !== 'Open' && !slot.phoneBlocked) {
-        return `<td style="color:var(--text-3);font-size:11px;text-align:center;background:#f5f5f5;">claimed in-person</td>`;
+        return `<td style="color:var(--text-3);font-size:10px;text-align:center;background:#f5f5f5;padding:6px;">claimed<br>in-person</td>`;
       }
       const amtField = card === 'Visa' ? 'visaAmount' : (card === 'Mastercard' ? 'mcAmount' : 'amexAmount');
       const statField = card === 'Visa' ? 'visaStatus' : (card === 'Mastercard' ? 'mcStatus' : 'amexStatus');
       const amt = t[amtField] || '';
       const stat = t[statField] || 'New';
-      const cardInfo = PHONE_TEST_CARDS[card] || {};
       const done = PHONE_BLOCKING_STATUSES.includes(stat);
-      return `<td style="${done ? 'background:#f0faf4;' : ''}">
-        <div style="font-size:10px;color:var(--text-3);font-family:'DM Mono',monospace;margin-bottom:4px;">${cardInfo.last4 ? '••' + cardInfo.last4 : ''}</div>
-        <input type="number" step="0.01" value="${amt}" placeholder="$0.00" onblur="updatePhoneRow(${s.id}, '${amtField}', this.value)" style="font-size:12px;font-family:'DM Mono',monospace;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:75px;">
-        <select onchange="updatePhoneRow(${s.id}, '${statField}', this.value)" style="font-size:11px;padding:4px 6px;width:auto;display:block;margin-top:4px;">
+      return `<td style="${done ? 'background:#f0faf4;' : ''}padding:6px;">
+        <input type="number" step="0.01" value="${amt}" placeholder="$0.00" onblur="updatePhoneRow(${s.id}, '${amtField}', this.value)" style="font-size:12px;font-family:'DM Mono',monospace;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;">
+        <select onchange="updatePhoneRow(${s.id}, '${statField}', this.value)" style="font-size:11px;padding:3px 4px;width:100%;box-sizing:border-box;display:block;margin-top:3px;">
           ${PHONE_STATUSES.map(st => `<option value="${st}" ${stat === st ? 'selected' : ''}>${st}</option>`).join('')}
         </select>
       </td>`;
@@ -2515,8 +2587,8 @@ function renderPhoneBrowse() {
       ${cardCell('Visa')}
       ${cardCell('Mastercard')}
       ${cardCell('Amex')}
-      <td><input type="date" value="${lastContacted}" onchange="updatePhoneRow(${s.id}, 'lastContacted', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);"></td>
-      <td><textarea onblur="updatePhoneRow(${s.id}, 'notes', this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:180px;min-height:50px;resize:vertical;">${t.notes || ''}</textarea></td>
+      <td style="padding:6px;"><input type="date" value="${lastContacted}" onchange="updatePhoneRow(${s.id}, 'lastContacted', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
+      <td style="padding:6px;"><textarea onblur="updatePhoneRow(${s.id}, 'notes', this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:100%;min-height:50px;resize:vertical;box-sizing:border-box;">${t.notes || ''}</textarea></td>
     </tr>`;
   }).join('');
 }
