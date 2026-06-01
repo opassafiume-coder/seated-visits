@@ -373,12 +373,13 @@
       <div>
         <table class="admin-table" id="phone-directory-table" style="table-layout:fixed;width:100%;">
           <colgroup>
-            <col style="width:28%;">
-            <col style="width:11%;">
-            <col style="width:11%;">
-            <col style="width:11%;">
+            <col style="width:26%;">
+            <col style="width:9%;">
+            <col style="width:9%;">
+            <col style="width:9%;">
+            <col style="width:13%;">
             <col style="width:10%;">
-            <col style="width:29%;">
+            <col style="width:24%;">
           </colgroup>
           <thead>
             <tr>
@@ -386,12 +387,13 @@
               <th>Visa</th>
               <th>Mastercard</th>
               <th>Amex</th>
+              <th>Status</th>
               <th>Last contacted</th>
               <th>Notes</th>
             </tr>
           </thead>
           <tbody id="phone-directory-tbody">
-            <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants</td></tr>
+            <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants</td></tr>
           </tbody>
         </table>
       </div>
@@ -557,10 +559,11 @@
             <th>Updated by</th>
             <th>Restaurant</th>
             <th>City</th>
-            <th>Visa</th>
-            <th>Mastercard</th>
-            <th>Amex</th>
-            <th colspan="2">Notes</th>
+            <th>Visa $</th>
+            <th>MC $</th>
+            <th>Amex $</th>
+            <th>Status</th>
+            <th>Notes</th>
             <th colspan="2">Last updated</th>
           </tr>
         </thead>
@@ -923,7 +926,7 @@ async function ensureDataTabs() {
     const tabs = [
       { title: 'Claims',     headers: ['Restaurant ID','Restaurant Name','Address','City','Card','Status','Claimant Name','Claimant Email','Relation','Employee Email','Claimed At','Reimb','Rev Value'] },
       { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received','Amount Venmod','Date Venmod','Venmo Fee','MID Export','Rev Value'] },
-      { title: 'Phone Tests', headers: ['Restaurant ID','Restaurant Name','Address','City','Visa Amount','Visa Status','MC Amount','MC Status','Amex Amount','Amex Status','Notes','Last Contacted','Last Updated By','Last Updated At'] },
+      { title: 'Phone Tests', headers: ['Restaurant ID','Restaurant Name','Address','City','Visa Amount','MC Amount','Amex Amount','Status','Notes','Last Contacted','Last Updated By','Last Updated At'] },
       { title: 'Claim Log',  headers: ['Logged At','Name','Email','Relation','Restaurant','Address','City','Card','Reimb','Restaurant ID'] },
     ];
     const toCreate = tabs.filter(t => !existing.includes(t.title));
@@ -1049,10 +1052,10 @@ async function loadAllDataFromSheets() {
     }
   } catch(e) { console.error('Failed to load Claim Log tab:', e); }
 
-  // ── Phone Tests ── (one row per restaurant)
+  // ── Phone Tests ── (one row per restaurant; single status per restaurant)
   const loadedPhoneTests = [];
   try {
-    const vals = await fetchSheetValues('Phone Tests!A:N');
+    const vals = await fetchSheetValues('Phone Tests!A:L');
     if (vals.length > 1) {
       const h = vals[0]; const idx = k => h.indexOf(k);
       vals.slice(1).forEach((row, i) => {
@@ -1063,11 +1066,9 @@ async function loadAllDataFromSheets() {
           address:        row[idx('Address')] || '',
           city:           row[idx('City')] || '',
           visaAmount:     row[idx('Visa Amount')] || '',
-          visaStatus:     row[idx('Visa Status')] || '',
           mcAmount:       row[idx('MC Amount')] || '',
-          mcStatus:       row[idx('MC Status')] || '',
           amexAmount:     row[idx('Amex Amount')] || '',
-          amexStatus:     row[idx('Amex Status')] || '',
+          status:         row[idx('Status')] || '',
           notes:          row[idx('Notes')] || '',
           lastContacted:  row[idx('Last Contacted')] || '',
           lastUpdatedBy:  row[idx('Last Updated By')] || '',
@@ -1171,27 +1172,24 @@ async function loadSpots() {
   claimLog = cl;
   phoneTests = pt || [];
 
-  // Build map of (restaurantId|card) → blocking phone test (new schema: one row per restaurant)
-  const phoneBlockedMap = {};
+  // Build map of restaurantId → phone test if it's in a blocking status (blocks ALL cards for the restaurant)
+  const phoneBlockedByRest = {};
   phoneTests.forEach(t => {
-    const cardStatusMap = { 'Visa': t.visaStatus, 'Mastercard': t.mcStatus, 'Amex': t.amexStatus };
-    Object.entries(cardStatusMap).forEach(([card, status]) => {
-      if (PHONE_BLOCKING_STATUSES.includes(status)) {
-        phoneBlockedMap[`${t.restaurantId}|${card}`] = { ...t, blockingCard: card, blockingStatus: status };
-      }
-    });
+    if (PHONE_BLOCKING_STATUSES.includes(t.status)) {
+      phoneBlockedByRest[t.restaurantId] = t;
+    }
   });
 
   spots = RESTAURANTS.map(r => {
     const cardSlots = {};
+    const phoneBlock = phoneBlockedByRest[r.id];
     r.cards.forEach(card => {
-      const phoneBlock = phoneBlockedMap[`${r.id}|${card}`];
       if (phoneBlock) {
-        // Card was claimed via phone test — block from in-person flow
+        // All cards blocked because the restaurant is in a phone-blocking status
         cardSlots[card] = {
           status: 'Claimed',
           phoneBlocked: true,
-          claimant: { name: phoneBlock.lastUpdatedBy, email: phoneBlock.lastUpdatedBy, rel: 'Phone test (' + phoneBlock.blockingStatus + ')', claimedAt: phoneBlock.lastUpdatedAt, reimb: 0, revValue: null, restaurantName: r.name, restaurantAddr: r.addr, restaurantMarket: r.market }
+          claimant: { name: phoneBlock.lastUpdatedBy, email: phoneBlock.lastUpdatedBy, rel: 'Phone test (' + phoneBlock.status + ')', claimedAt: phoneBlock.lastUpdatedAt, reimb: 0, revValue: null, restaurantName: r.name, restaurantAddr: r.addr, restaurantMarket: r.market }
         };
       } else {
         cardSlots[card] = (claimsMap[r.id] && claimsMap[r.id][card])
@@ -2494,15 +2492,11 @@ function renderPhoneBrowse() {
     if (nameFilter && !(s.name || '').toLowerCase().includes(nameFilter)) return false;
     if (statusFilter) {
       const t = phoneByRest[s.id];
-      const statusesPresent = t ? [t.visaStatus, t.mcStatus, t.amexStatus].filter(Boolean) : [];
+      const stat = t?.status || '';
       if (statusFilter === 'New') {
-        // New = none of the needed cards has a non-empty status
-        const needed = s.cards;
-        const cardStatusMap = { 'Visa': t?.visaStatus, 'Mastercard': t?.mcStatus, 'Amex': t?.amexStatus };
-        const anyTouched = needed.some(c => cardStatusMap[c] && cardStatusMap[c] !== '' && cardStatusMap[c] !== 'New');
-        if (anyTouched) return false;
+        if (stat && stat !== 'New') return false;
       } else {
-        if (!statusesPresent.includes(statusFilter)) return false;
+        if (stat !== statusFilter) return false;
       }
     }
     return true;
@@ -2512,16 +2506,16 @@ function renderPhoneBrowse() {
   const calledIds = new Set();
   let midsCount = 0, doneCount = 0, revCaptured = 0;
   phoneTests.forEach(t => {
-    if (t.lastContacted || t.visaStatus || t.mcStatus || t.amexStatus || t.notes) calledIds.add(t.restaurantId);
-    const cards = [['Visa', t.visaStatus], ['Mastercard', t.mcStatus], ['Amex', t.amexStatus]];
-    cards.forEach(([cardName, stat]) => {
-      if (stat === 'MIDs run') midsCount++;
-      if (stat === 'Trx Submitted: DONE!') {
-        doneCount++;
-        const spot = spots.find(sp => sp.id === t.restaurantId);
-        if (spot && spot.rev && spot.rev[cardName] != null) revCaptured += Number(spot.rev[cardName]) || 0;
+    if (t.lastContacted || t.status || t.notes || t.visaAmount || t.mcAmount || t.amexAmount) calledIds.add(t.restaurantId);
+    if (t.status === 'MIDs run') midsCount++;
+    if (t.status === 'Trx Submitted: DONE!') {
+      doneCount++;
+      const spot = spots.find(sp => sp.id === t.restaurantId);
+      if (spot && spot.rev) {
+        // Sum rev across all cards the restaurant needed
+        spot.cards.forEach(c => { if (spot.rev[c] != null) revCaptured += Number(spot.rev[c]) || 0; });
       }
-    });
+    }
   });
   const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   setText('phone-stat-called', calledIds.size);
@@ -2548,30 +2542,27 @@ function renderPhoneBrowse() {
 
   tbody.innerHTML = filtered.map(s => {
     const t = phoneByRest[s.id] || {};
+    const stat = t.status || 'New';
+    const done = PHONE_BLOCKING_STATUSES.includes(stat);
+    const rowBg = done ? 'background:#f0faf4;' : '';
     const cardCell = (card) => {
       const isNeeded = s.cards.includes(card);
-      if (!isNeeded) return '<td style="color:var(--text-3);font-size:12px;text-align:center;padding:6px;">—</td>';
+      if (!isNeeded) return `<td style="color:var(--text-3);font-size:12px;text-align:center;padding:6px;${rowBg}">—</td>`;
       const slot = s.cardSlots[card];
       if (slot && slot.status !== 'Open' && !slot.phoneBlocked) {
         return `<td style="color:var(--text-3);font-size:10px;text-align:center;background:#f5f5f5;padding:6px;">claimed<br>in-person</td>`;
       }
       const amtField = card === 'Visa' ? 'visaAmount' : (card === 'Mastercard' ? 'mcAmount' : 'amexAmount');
-      const statField = card === 'Visa' ? 'visaStatus' : (card === 'Mastercard' ? 'mcStatus' : 'amexStatus');
       const amt = t[amtField] || '';
-      const stat = t[statField] || 'New';
-      const done = PHONE_BLOCKING_STATUSES.includes(stat);
-      return `<td style="${done ? 'background:#f0faf4;' : ''}padding:6px;">
-        <input type="number" step="0.01" value="${amt}" placeholder="$0.00" onblur="updatePhoneRow(${s.id}, '${amtField}', this.value)" style="font-size:12px;font-family:'DM Mono',monospace;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;">
-        <select onchange="updatePhoneRow(${s.id}, '${statField}', this.value)" style="font-size:11px;padding:3px 4px;width:100%;box-sizing:border-box;display:block;margin-top:3px;">
-          ${PHONE_STATUSES.map(st => `<option value="${st}" ${stat === st ? 'selected' : ''}>${st}</option>`).join('')}
-        </select>
+      return `<td style="padding:6px;${rowBg}">
+        <input type="number" step="0.01" value="${amt}" placeholder="$0.00" onblur="updatePhoneRow(${s.id}, '${amtField}', this.value)" style="font-size:12px;font-family:'DM Mono',monospace;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;">
       </td>`;
     };
     const lastContacted = t.lastContacted || '';
     const prioColor = s.priority === 'High' ? '#8C2418' : (s.priority === 'Medium' ? '#7A4E00' : '#1A5C36');
     const prioBg    = s.priority === 'High' ? '#FFF0EE' : (s.priority === 'Medium' ? '#FFF8EC' : '#F0FAF4');
-    return `<tr>
-      <td>
+    return `<tr style="${rowBg}">
+      <td style="${rowBg}">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
           <div style="min-width:0;flex:1;">
             <div style="font-weight:600;font-size:13px;">${s.name}</div>
@@ -2587,8 +2578,14 @@ function renderPhoneBrowse() {
       ${cardCell('Visa')}
       ${cardCell('Mastercard')}
       ${cardCell('Amex')}
-      <td style="padding:6px;"><input type="date" value="${lastContacted}" onchange="updatePhoneRow(${s.id}, 'lastContacted', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
-      <td style="padding:6px;"><textarea onblur="updatePhoneRow(${s.id}, 'notes', this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:100%;min-height:50px;resize:vertical;box-sizing:border-box;">${t.notes || ''}</textarea></td>
+      <td style="padding:6px;${rowBg}">
+        <select onchange="updatePhoneRow(${s.id}, 'status', this.value)" style="font-size:12px;padding:4px 6px;width:100%;box-sizing:border-box;">
+          <option value="" ${!stat || stat === 'New' ? 'selected' : ''}>New</option>
+          ${PHONE_STATUSES.filter(s => s !== 'New').map(st => `<option value="${st}" ${stat === st ? 'selected' : ''}>${st}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:6px;${rowBg}"><input type="date" value="${lastContacted}" onchange="updatePhoneRow(${s.id}, 'lastContacted', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
+      <td style="padding:6px;${rowBg}"><textarea onblur="updatePhoneRow(${s.id}, 'notes', this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:100%;min-height:50px;resize:vertical;box-sizing:border-box;">${t.notes || ''}</textarea></td>
     </tr>`;
   }).join('');
 }
@@ -2609,9 +2606,8 @@ async function updatePhoneRow(restaurantId, field, value) {
       restaurantName: s.name,
       address: s.addr,
       city: s.market,
-      visaAmount: '', visaStatus: '',
-      mcAmount: '', mcStatus: '',
-      amexAmount: '', amexStatus: '',
+      visaAmount: '', mcAmount: '', amexAmount: '',
+      status: '',
       notes: '',
       lastContacted: '',
       lastUpdatedBy: userProfile.email,
@@ -2621,10 +2617,9 @@ async function updatePhoneRow(restaurantId, field, value) {
     try {
       await appendToSheet('Phone Tests', [
         row.restaurantId, row.restaurantName, row.address, row.city,
-        row.visaAmount, row.visaStatus, row.mcAmount, row.mcStatus, row.amexAmount, row.amexStatus,
-        row.notes, row.lastContacted, row.lastUpdatedBy, row.lastUpdatedAt
+        row.visaAmount, row.mcAmount, row.amexAmount,
+        row.status, row.notes, row.lastContacted, row.lastUpdatedBy, row.lastUpdatedAt
       ]);
-      // Reload so we have the _sheetRow and so blocking logic updates
       await loadSpots();
     } catch(e) { console.error('Failed to create phone test row:', e); alert('Failed to save: ' + e.message); }
     return;
@@ -2635,21 +2630,18 @@ async function updatePhoneRow(restaurantId, field, value) {
   t.lastUpdatedBy = userProfile.email;
   t.lastUpdatedAt = stamp;
   const fieldToCol = {
-    visaAmount: 'E', visaStatus: 'F',
-    mcAmount: 'G', mcStatus: 'H',
-    amexAmount: 'I', amexStatus: 'J',
-    notes: 'K', lastContacted: 'L',
+    visaAmount: 'E', mcAmount: 'F', amexAmount: 'G',
+    status: 'H', notes: 'I', lastContacted: 'J',
   };
   const col = fieldToCol[field];
   if (!col || !t._sheetRow) return;
   try {
     await updateSheetCell(`Phone Tests!${col}${t._sheetRow}`, value);
-    await updateSheetCell(`Phone Tests!M${t._sheetRow}`, userProfile.email);
-    await updateSheetCell(`Phone Tests!N${t._sheetRow}`, stamp);
-    // If a status field was updated, reload so card-blocking takes effect
-    if (field === 'visaStatus' || field === 'mcStatus' || field === 'amexStatus') {
-      await loadSpots();
-    }
+    await updateSheetCell(`Phone Tests!K${t._sheetRow}`, userProfile.email);
+    await updateSheetCell(`Phone Tests!L${t._sheetRow}`, stamp);
+    // If status was updated, reload so card-blocking takes effect
+    if (field === 'status') await loadSpots();
+    else renderPhoneBrowse(); // refresh impact stats / row styling
   } catch(e) { console.error(e); alert('Failed to save: ' + e.message); }
 }
 
@@ -2659,10 +2651,7 @@ function renderPhoneAdmin() {
   const statusFilter = document.getElementById('phone-admin-status-filter')?.value || '';
   const nameFilter = (document.getElementById('phone-admin-name-filter')?.value || '').toLowerCase().trim();
   let filtered = phoneTests.filter(t => {
-    if (statusFilter) {
-      const hasStatus = [t.visaStatus, t.mcStatus, t.amexStatus].some(s => s === statusFilter);
-      if (!hasStatus) return false;
-    }
+    if (statusFilter && (t.status || 'New') !== statusFilter) return false;
     if (nameFilter && !(t.restaurantName || '').toLowerCase().includes(nameFilter)) return false;
     return true;
   });
@@ -2671,21 +2660,20 @@ function renderPhoneAdmin() {
     tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter || statusFilter ? 'No phone tests match your filters' : 'No phone tests yet'}</td></tr>`;
     return;
   }
-  const fmtCard = (amt, stat) => {
-    if (!amt && !stat) return '<span style="color:var(--text-3);">—</span>';
-    const done = PHONE_BLOCKING_STATUSES.includes(stat);
-    return `<div style="font-size:12px;font-family:'DM Mono',monospace;">$${parseFloat(amt || 0).toFixed(2)}</div><div style="font-size:11px;color:${done ? '#1A5C36' : 'var(--text-2)'};font-weight:${done ? '600' : '400'};">${stat || 'New'}</div>`;
-  };
+  const fmtAmt = amt => amt ? `$${parseFloat(amt || 0).toFixed(2)}` : '<span style="color:var(--text-3);">—</span>';
   tbody.innerHTML = filtered.map(t => {
-    return `<tr>
+    const stat = t.status || 'New';
+    const done = PHONE_BLOCKING_STATUSES.includes(stat);
+    return `<tr style="${done ? 'background:#f0faf4;' : ''}">
       <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${t.lastContacted || (t.lastUpdatedAt ? t.lastUpdatedAt.slice(0,10) : '—')}</td>
       <td><div style="font-size:11px;color:var(--text-3);">${t.lastUpdatedBy || '—'}</div></td>
       <td style="font-size:13px;font-weight:500;"><div>${t.restaurantName}</div><div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;">ID: ${t.restaurantId}</div></td>
       <td style="font-size:12px;color:var(--text-2);">${t.city || '—'}</td>
-      <td>${fmtCard(t.visaAmount, t.visaStatus)}</td>
-      <td>${fmtCard(t.mcAmount, t.mcStatus)}</td>
-      <td>${fmtCard(t.amexAmount, t.amexStatus)}</td>
-      <td colspan="2" style="font-size:12px;color:var(--text-2);">${t.notes || '—'}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;">${fmtAmt(t.visaAmount)}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;">${fmtAmt(t.mcAmount)}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;">${fmtAmt(t.amexAmount)}</td>
+      <td colspan="1" style="font-size:12px;font-weight:${done ? '600' : '400'};color:${done ? '#1A5C36' : 'var(--text-2)'};">${stat}</td>
+      <td colspan="1" style="font-size:12px;color:var(--text-2);">${t.notes || '—'}</td>
       <td style="font-size:11px;color:var(--text-3);" colspan="2">${t.lastUpdatedAt ? new Date(t.lastUpdatedAt).toLocaleString() : '—'}</td>
     </tr>`;
   }).join('');
