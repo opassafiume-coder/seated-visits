@@ -888,6 +888,7 @@ let spots = [];
 let pvReports = [];
 let claimLog = [];
 let phoneTests = [];
+let inPersonClaimsMap = {}; // Preserved separately from spots so we can find claimants even when phone-blocked
 let phoneSelectedRestaurant = null; // { id, name, card }
 let selectedId = null;
 let selectedCard = null;
@@ -1175,6 +1176,7 @@ async function loadSpots() {
   pvReports = pv;
   claimLog = cl;
   phoneTests = pt || [];
+  inPersonClaimsMap = claimsMap;
 
   // Build map keyed by (restaurantId|card) for blocking status. With per-card rows, the latest test wins.
   const phoneBlockedByCard = {};
@@ -2651,6 +2653,7 @@ async function updatePhoneCard(restaurantId, card, field, value) {
     return;
   }
 
+  const prevStatus = t.status || '';
   t[field] = value;
   t.testerEmail = userProfile.email;
   t.lastUpdatedAt = stamp;
@@ -2665,7 +2668,11 @@ async function updatePhoneCard(restaurantId, card, field, value) {
     await updateSheetCell(`Phone Tests!${col}${t._sheetRow}`, writeVal);
     await updateSheetCell(`Phone Tests!J${t._sheetRow}`, userProfile.email);
     await updateSheetCell(`Phone Tests!K${t._sheetRow}`, stamp);
-    if (field === 'status') await loadSpots();
+    if (field === 'status') {
+      const becameBlocking = PHONE_BLOCKING_STATUSES.includes(value) && !PHONE_BLOCKING_STATUSES.includes(prevStatus);
+      await loadSpots();
+      if (becameBlocking) await notifyPhoneClearedClaim(restaurantId, value);
+    }
     else renderPhoneBrowse();
   } catch(e) { console.error(e); alert('Failed to save: ' + e.message); }
 }
@@ -2679,6 +2686,11 @@ async function updatePhoneRestaurant(restaurantId, field, value) {
   const col = fieldToCol[field];
   if (!col) return;
   const stamp = new Date().toISOString();
+
+  // Capture previous status BEFORE updating, so we know if this is a transition into a blocking state
+  const prevTest = phoneTests.find(x => x.restaurantId === restaurantId);
+  const prevStatus = prevTest?.status || '';
+  const isStatusTransitionToBlocking = field === 'status' && PHONE_BLOCKING_STATUSES.includes(value) && !PHONE_BLOCKING_STATUSES.includes(prevStatus);
 
   try {
     // Ensure a row exists for each needed card; update the field on all of them
@@ -2716,7 +2728,77 @@ async function updatePhoneRestaurant(restaurantId, field, value) {
       }
     }
     await loadSpots();
+    // Notify in-person claimants if this was a transition into a blocking state
+    if (isStatusTransitionToBlocking) {
+      await notifyPhoneClearedClaim(restaurantId, value);
+    }
   } catch(e) { console.error(e); alert('Failed to save: ' + e.message); }
+}
+
+// Email the in-person claimants (and admin) when a phone test clears their claim.
+async function notifyPhoneClearedClaim(restaurantId, blockingStatus) {
+  const s = spots.find(r => r.id === restaurantId);
+  if (!s) return;
+  const claims = inPersonClaimsMap[restaurantId] || {};
+  const claimants = [];
+  Object.entries(claims).forEach(([card, slot]) => {
+    if (slot && slot.status === 'Claimed' && slot.claimant && slot.claimant.email) {
+      claimants.push({ card, ...slot.claimant });
+    }
+  });
+  if (claimants.length === 0) return;
+
+  // Deduplicate by claimant email — one email per person even if they hold multiple cards
+  const byEmail = {};
+  claimants.forEach(c => {
+    if (!byEmail[c.email]) byEmail[c.email] = { name: c.name, email: c.email, rel: c.rel, employeeEmail: c.employeeEmail, cards: [] };
+    byEmail[c.email].cards.push(c.card);
+  });
+  const recipients = Object.values(byEmail);
+
+  try {
+    emailjs.init(CONFIG.EMAILJS_PUBLIC);
+    const claimTimeStr = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    for (const r of recipients) {
+      const cardsList = r.cards.join(', ');
+      // Notify the claimant
+      try {
+        await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+          to_email: r.email,
+          restaurant: s.name + ' — Phone test completed',
+          address: s.addr,
+          market: s.market,
+          claimant_name: r.name,
+          claimant_email: r.email,
+          relation: r.rel || '',
+          employee_email: r.employeeEmail || 'N/A',
+          cards: cardsList,
+          reimb: 'No visit needed',
+          claim_time: claimTimeStr,
+          card_reminder: `Hi ${r.name}, good news — we collected the test transaction at ${s.name} over the phone, so you no longer need to visit. Status: ${blockingStatus}. Your spot has been released.`,
+          deadline_note: 'Questions? Reach out to Olivia at (502) 296-9770 or opassafiume@seatedapp.io.'
+        });
+      } catch(e) { console.error('Failed to notify claimant:', r.email, e); }
+      // Notify admin
+      try {
+        await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+          to_email: CONFIG.ADMIN_EMAIL,
+          restaurant: '📞 Phone test cleared in-person claim',
+          address: `${s.name} (${s.market})`,
+          market: s.market,
+          claimant_name: r.name,
+          claimant_email: r.email,
+          relation: r.rel || '',
+          employee_email: r.employeeEmail || 'N/A',
+          cards: cardsList,
+          reimb: 'N/A',
+          claim_time: claimTimeStr,
+          card_reminder: `${r.name} (${r.email}) had claimed ${cardsList} at ${s.name}. Their claim is no longer needed — trx was collected via phone (status: ${blockingStatus}).`,
+          deadline_note: 'They have been notified by email automatically.'
+        });
+      } catch(e) { console.error('Failed to notify admin:', e); }
+    }
+  } catch(e) { console.error('Phone notification batch failed:', e); }
 }
 
 function renderPhoneAdmin() {
