@@ -373,12 +373,13 @@
       <div>
         <table class="admin-table" id="phone-directory-table" style="table-layout:fixed;width:100%;">
           <colgroup>
-            <col style="width:26%;">
-            <col style="width:13%;">
-            <col style="width:13%;">
+            <col style="width:24%;">
+            <col style="width:9%;">
+            <col style="width:9%;">
+            <col style="width:9%;">
             <col style="width:13%;">
             <col style="width:10%;">
-            <col style="width:25%;">
+            <col style="width:26%;">
           </colgroup>
           <thead>
             <tr>
@@ -386,12 +387,13 @@
               <th>Visa</th>
               <th>Mastercard</th>
               <th>Amex</th>
+              <th>Status</th>
               <th>Last contacted</th>
               <th>Notes</th>
             </tr>
           </thead>
           <tbody id="phone-directory-tbody">
-            <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants</td></tr>
+            <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants</td></tr>
           </tbody>
         </table>
       </div>
@@ -2553,8 +2555,13 @@ function renderPhoneBrowse() {
 
   tbody.innerHTML = filtered.map(s => {
     const cardTest = (card) => phoneByCard[`${s.id}|${card}`] || {};
-    const allTests = s.cards.map(c => cardTest(c)).filter(x => x && x.status);
-    const allDone = allTests.length === s.cards.length && allTests.every(x => PHONE_BLOCKING_STATUSES.includes(x.status));
+    const allTests = s.cards.map(c => cardTest(c)).filter(x => x && (x.status || x.amount));
+    // Restaurant-level status/date/notes: take from any existing card row (they're kept in sync)
+    const anyTest = allTests[0] || {};
+    const restoStatus = anyTest.status || 'New';
+    const restoDate = anyTest.date || '';
+    const restoNotes = anyTest.notes || '';
+    const allDone = s.cards.length > 0 && PHONE_BLOCKING_STATUSES.includes(restoStatus);
     const rowBg = allDone ? 'background:#f0faf4;' : '';
     const cardCell = (card) => {
       const isNeeded = s.cards.includes(card);
@@ -2565,20 +2572,10 @@ function renderPhoneBrowse() {
       }
       const t = cardTest(card);
       const amt = t.amount || '';
-      const stat = t.status || 'New';
-      const done = PHONE_BLOCKING_STATUSES.includes(stat);
-      return `<td style="padding:6px;${done ? 'background:#f0faf4;' : ''}">
-        <input type="number" step="0.01" value="${amt}" placeholder="$0.00" onblur="updatePhoneCard(${s.id}, '${card}', 'amount', this.value)" style="font-size:12px;font-family:'DM Mono',monospace;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;">
-        <select onchange="updatePhoneCard(${s.id}, '${card}', 'status', this.value)" style="font-size:11px;padding:3px 4px;width:100%;box-sizing:border-box;display:block;margin-top:3px;">
-          <option value="" ${!stat || stat === 'New' ? 'selected' : ''}>New</option>
-          ${PHONE_STATUSES.filter(x => x !== 'New').map(st => `<option value="${st}" ${stat === st ? 'selected' : ''}>${st}</option>`).join('')}
-        </select>
+      return `<td style="padding:6px;${rowBg}">
+        <input type="number" step="0.01" value="${amt}" placeholder="$0.00" onblur="updatePhoneCard(${s.id}, '${card}', 'amount', this.value)" style="font-size:12px;font-family:'DM Mono',monospace;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;">
       </td>`;
     };
-    const lastContacted = lastDateByRest[s.id] || '';
-    // Notes from any existing card test (they share); we save to the first one we find
-    const anyTestWithNotes = allTests.find(x => x.notes) || allTests[0];
-    const notesValue = anyTestWithNotes?.notes || '';
     const prioColor = s.priority === 'High' ? '#8C2418' : (s.priority === 'Medium' ? '#7A4E00' : '#1A5C36');
     const prioBg    = s.priority === 'High' ? '#FFF0EE' : (s.priority === 'Medium' ? '#FFF8EC' : '#F0FAF4');
     return `<tr style="${rowBg}">
@@ -2598,8 +2595,14 @@ function renderPhoneBrowse() {
       ${cardCell('Visa')}
       ${cardCell('Mastercard')}
       ${cardCell('Amex')}
-      <td style="padding:6px;${rowBg};font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);text-align:center;">${lastContacted || '—'}</td>
-      <td style="padding:6px;${rowBg}"><textarea onblur="updatePhoneRestaurantNotes(${s.id}, this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:100%;min-height:50px;resize:vertical;box-sizing:border-box;">${notesValue}</textarea></td>
+      <td style="padding:6px;${rowBg}">
+        <select onchange="updatePhoneRestaurant(${s.id}, 'status', this.value)" style="font-size:12px;padding:4px 6px;width:100%;box-sizing:border-box;">
+          <option value="" ${!restoStatus || restoStatus === 'New' ? 'selected' : ''}>New</option>
+          ${PHONE_STATUSES.filter(x => x !== 'New').map(st => `<option value="${st}" ${restoStatus === st ? 'selected' : ''}>${st}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:6px;${rowBg}"><input type="date" value="${restoDate}" onchange="updatePhoneRestaurant(${s.id}, 'date', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
+      <td style="padding:6px;${rowBg}"><textarea onblur="updatePhoneRestaurant(${s.id}, 'notes', this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:100%;min-height:50px;resize:vertical;box-sizing:border-box;">${restoNotes}</textarea></td>
     </tr>`;
   }).join('');
 }
@@ -2670,21 +2673,61 @@ async function updatePhoneCard(restaurantId, card, field, value) {
   } catch(e) { console.error(e); alert('Failed to save: ' + e.message); }
 }
 
-// Update notes across all phone test rows for a restaurant (denormalized for convenience).
-async function updatePhoneRestaurantNotes(restaurantId, value) {
-  const tests = phoneTests.filter(x => x.restaurantId === restaurantId);
-  if (tests.length === 0) {
-    // No tests yet — nothing to attach the note to. We'll let it save on next card update.
-    return;
-  }
+// Update a restaurant-level field (status, date, notes) — fan out to all needed-card rows.
+// Creates rows for any cards that don't have one yet.
+async function updatePhoneRestaurant(restaurantId, field, value) {
+  const s = spots.find(r => r.id === restaurantId);
+  if (!s) return;
+  const fieldToCol = { date: 'F', status: 'G', notes: 'I' };
+  const col = fieldToCol[field];
+  if (!col) return;
+  const stamp = new Date().toISOString();
+
   try {
-    for (const t of tests) {
-      if (!t._sheetRow) continue;
-      await updateSheetCell(`Phone Tests!I${t._sheetRow}`, value);
-      t.notes = value;
+    // Ensure a row exists for each needed card
+    for (const card of s.cards) {
+      let t = phoneTests.find(x => x.restaurantId === restaurantId && x.card === card);
+      if (!t) {
+        // Create new row with this field set
+        const cardInfo = PHONE_TEST_CARDS[card] || {};
+        const network = card.toUpperCase();
+        const newRow = {
+          restaurantName: s.name,
+          restaurantId,
+          cardNetwork: network,
+          cardId: cardInfo.cardId || '',
+          amount: '',
+          date: field === 'date' ? value : (field === 'status' && value ? new Date().toISOString().slice(0,10) : ''),
+          status: field === 'status' ? value : 'New',
+          midSubmitted: false,
+          notes: field === 'notes' ? value : '',
+          testerEmail: userProfile.email,
+          lastUpdatedAt: stamp,
+        };
+        await appendToSheet('Phone Tests', [
+          newRow.restaurantName, newRow.restaurantId, newRow.cardNetwork, newRow.cardId,
+          newRow.amount, newRow.date, newRow.status, newRow.midSubmitted ? 'TRUE' : 'FALSE',
+          newRow.notes, newRow.testerEmail, newRow.lastUpdatedAt
+        ]);
+      } else if (t._sheetRow) {
+        // Update existing row's specific cell
+        await updateSheetCell(`Phone Tests!${col}${t._sheetRow}`, value);
+        // If status set and date empty, stamp today
+        if (field === 'status' && value && !t.date) {
+          const today = new Date().toISOString().slice(0,10);
+          await updateSheetCell(`Phone Tests!F${t._sheetRow}`, today);
+          t.date = today;
+        }
+        await updateSheetCell(`Phone Tests!J${t._sheetRow}`, userProfile.email);
+        await updateSheetCell(`Phone Tests!K${t._sheetRow}`, stamp);
+        t[field] = value;
+        t.testerEmail = userProfile.email;
+        t.lastUpdatedAt = stamp;
+      }
     }
-    renderPhoneBrowse();
-  } catch(e) { console.error(e); alert('Failed to save notes: ' + e.message); }
+    // Reload to refresh state and (for status) recompute card-blocking
+    await loadSpots();
+  } catch(e) { console.error(e); alert('Failed to save: ' + e.message); }
 }
 
 function renderPhoneAdmin() {
