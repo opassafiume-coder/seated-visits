@@ -388,9 +388,9 @@
               <th>Visa</th>
               <th>Mastercard</th>
               <th>Amex</th>
+              <th>Trx ran</th>
               <th>Status</th>
               <th>Last contacted</th>
-              <th>Trx ran</th>
               <th>Notes</th>
             </tr>
           </thead>
@@ -2597,6 +2597,7 @@ function renderPhoneBrowse() {
       ${cardCell('Visa')}
       ${cardCell('Mastercard')}
       ${cardCell('Amex')}
+      <td style="padding:6px;${rowBg}"><input type="date" value="${restoTrxDate}" onchange="updatePhoneRestaurant(${s.id}, 'trxDate', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
       <td style="padding:6px;${rowBg}">
         <select onchange="updatePhoneRestaurant(${s.id}, 'status', this.value)" style="font-size:12px;padding:4px 6px;width:100%;box-sizing:border-box;">
           <option value="" ${!restoStatus || restoStatus === 'New' ? 'selected' : ''}>New</option>
@@ -2604,7 +2605,6 @@ function renderPhoneBrowse() {
         </select>
       </td>
       <td style="padding:6px;${rowBg}"><input type="date" value="${restoLastContacted}" onchange="updatePhoneRestaurant(${s.id}, 'lastContacted', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
-      <td style="padding:6px;${rowBg}"><input type="date" value="${restoTrxDate}" onchange="updatePhoneRestaurant(${s.id}, 'trxDate', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
       <td style="padding:6px;${rowBg}"><textarea onblur="updatePhoneRestaurant(${s.id}, 'notes', this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:100%;min-height:50px;resize:vertical;box-sizing:border-box;">${restoNotes}</textarea></td>
     </tr>`;
   }).join('');
