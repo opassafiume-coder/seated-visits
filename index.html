@@ -374,12 +374,11 @@
         <table class="admin-table" id="phone-directory-table" style="table-layout:fixed;width:100%;">
           <colgroup>
             <col style="width:26%;">
-            <col style="width:9%;">
-            <col style="width:9%;">
-            <col style="width:9%;">
+            <col style="width:13%;">
+            <col style="width:13%;">
             <col style="width:13%;">
             <col style="width:10%;">
-            <col style="width:24%;">
+            <col style="width:25%;">
           </colgroup>
           <thead>
             <tr>
@@ -387,13 +386,12 @@
               <th>Visa</th>
               <th>Mastercard</th>
               <th>Amex</th>
-              <th>Status</th>
               <th>Last contacted</th>
               <th>Notes</th>
             </tr>
           </thead>
           <tbody id="phone-directory-tbody">
-            <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants</td></tr>
+            <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3);">No eligible restaurants</td></tr>
           </tbody>
         </table>
       </div>
@@ -555,20 +553,19 @@
       <table class="admin-table">
         <thead>
           <tr>
-            <th>Last contacted</th>
-            <th>Updated by</th>
+            <th>Date</th>
             <th>Restaurant</th>
-            <th>City</th>
-            <th>Visa $</th>
-            <th>MC $</th>
-            <th>Amex $</th>
+            <th>Admin ID</th>
+            <th>Card</th>
+            <th>Amount</th>
             <th>Status</th>
+            <th>Submitted to MID</th>
             <th>Notes</th>
-            <th colspan="2">Last updated</th>
+            <th>Tester</th>
           </tr>
         </thead>
         <tbody id="phone-admin-tbody">
-          <tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--text-3);">No phone tests yet</td></tr>
+          <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">No phone tests yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -926,7 +923,7 @@ async function ensureDataTabs() {
     const tabs = [
       { title: 'Claims',     headers: ['Restaurant ID','Restaurant Name','Address','City','Card','Status','Claimant Name','Claimant Email','Relation','Employee Email','Claimed At','Reimb','Rev Value'] },
       { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received','Amount Venmod','Date Venmod','Venmo Fee','MID Export','Rev Value'] },
-      { title: 'Phone Tests', headers: ['Restaurant ID','Restaurant Name','Address','City','Visa Amount','MC Amount','Amex Amount','Status','Notes','Last Contacted','Last Updated By','Last Updated At'] },
+      { title: 'Phone Tests', headers: ['Restaurant Name','Admin ID','Card Network','Card ID','Amount','Date','Status','Submitted to MID','Notes','Tester Email','Last Updated At'] },
       { title: 'Claim Log',  headers: ['Logged At','Name','Email','Relation','Restaurant','Address','City','Card','Reimb','Restaurant ID'] },
     ];
     const toCreate = tabs.filter(t => !existing.includes(t.title));
@@ -1052,26 +1049,29 @@ async function loadAllDataFromSheets() {
     }
   } catch(e) { console.error('Failed to load Claim Log tab:', e); }
 
-  // ── Phone Tests ── (one row per restaurant; single status per restaurant)
+  // ── Phone Tests ── (one row per (restaurant, card) test)
   const loadedPhoneTests = [];
   try {
-    const vals = await fetchSheetValues('Phone Tests!A:L');
+    const vals = await fetchSheetValues('Phone Tests!A:K');
     if (vals.length > 1) {
       const h = vals[0]; const idx = k => h.indexOf(k);
       vals.slice(1).forEach((row, i) => {
         if (!row[0]) return;
+        const network = String(row[idx('Card Network')] || '').toUpperCase();
+        // Normalize back to internal card key (Visa / Mastercard / Amex)
+        const cardKey = network === 'VISA' ? 'Visa' : network === 'MASTERCARD' ? 'Mastercard' : network === 'AMEX' ? 'Amex' : '';
         loadedPhoneTests.push({
-          restaurantId:   parseInt(row[idx('Restaurant ID')]) || 0,
           restaurantName: row[idx('Restaurant Name')] || '',
-          address:        row[idx('Address')] || '',
-          city:           row[idx('City')] || '',
-          visaAmount:     row[idx('Visa Amount')] || '',
-          mcAmount:       row[idx('MC Amount')] || '',
-          amexAmount:     row[idx('Amex Amount')] || '',
+          restaurantId:   parseInt(row[idx('Admin ID')]) || 0,
+          cardNetwork:    network,
+          card:           cardKey,
+          cardId:         row[idx('Card ID')] || '',
+          amount:         row[idx('Amount')] || '',
+          date:           row[idx('Date')] || '',
           status:         row[idx('Status')] || '',
+          midSubmitted:   row[idx('Submitted to MID')] === 'TRUE' || row[idx('Submitted to MID')] === true,
           notes:          row[idx('Notes')] || '',
-          lastContacted:  row[idx('Last Contacted')] || '',
-          lastUpdatedBy:  row[idx('Last Updated By')] || '',
+          testerEmail:    row[idx('Tester Email')] || '',
           lastUpdatedAt:  row[idx('Last Updated At')] || '',
           _sheetRow:      i + 2,
         });
@@ -1172,24 +1172,24 @@ async function loadSpots() {
   claimLog = cl;
   phoneTests = pt || [];
 
-  // Build map of restaurantId → phone test if it's in a blocking status (blocks ALL cards for the restaurant)
-  const phoneBlockedByRest = {};
+  // Build map keyed by (restaurantId|card) for blocking status. With per-card rows, the latest test wins.
+  const phoneBlockedByCard = {};
   phoneTests.forEach(t => {
-    if (PHONE_BLOCKING_STATUSES.includes(t.status)) {
-      phoneBlockedByRest[t.restaurantId] = t;
+    if (PHONE_BLOCKING_STATUSES.includes(t.status) && t.card) {
+      phoneBlockedByCard[`${t.restaurantId}|${t.card}`] = t;
     }
   });
 
   spots = RESTAURANTS.map(r => {
     const cardSlots = {};
-    const phoneBlock = phoneBlockedByRest[r.id];
     r.cards.forEach(card => {
+      const phoneBlock = phoneBlockedByCard[`${r.id}|${card}`];
       if (phoneBlock) {
-        // All cards blocked because the restaurant is in a phone-blocking status
+        // This specific card was claimed via phone test
         cardSlots[card] = {
           status: 'Claimed',
           phoneBlocked: true,
-          claimant: { name: phoneBlock.lastUpdatedBy, email: phoneBlock.lastUpdatedBy, rel: 'Phone test (' + phoneBlock.status + ')', claimedAt: phoneBlock.lastUpdatedAt, reimb: 0, revValue: null, restaurantName: r.name, restaurantAddr: r.addr, restaurantMarket: r.market }
+          claimant: { name: phoneBlock.testerEmail, email: phoneBlock.testerEmail, rel: 'Phone test (' + phoneBlock.status + ')', claimedAt: phoneBlock.lastUpdatedAt, reimb: 0, revValue: null, restaurantName: r.name, restaurantAddr: r.addr, restaurantMarket: r.market }
         };
       } else {
         cardSlots[card] = (claimsMap[r.id] && claimsMap[r.id][card])
@@ -2483,38 +2483,49 @@ function renderPhoneBrowse() {
   const statusFilter = document.getElementById('phone-status-filter')?.value || '';
   const sortBy = document.getElementById('phone-sort')?.value || 'gmv-desc';
 
-  // Build map: restaurantId → phoneTest row
-  const phoneByRest = {};
-  phoneTests.forEach(t => { phoneByRest[t.restaurantId] = t; });
+  // Build map: (restaurantId|card) → most recent phone test row
+  const phoneByCard = {};
+  phoneTests.forEach(t => {
+    if (!t.card) return;
+    const key = `${t.restaurantId}|${t.card}`;
+    const prev = phoneByCard[key];
+    if (!prev || new Date(t.lastUpdatedAt || 0) > new Date(prev.lastUpdatedAt || 0)) {
+      phoneByCard[key] = t;
+    }
+  });
+  // Build map: restaurantId → latest date across all card tests (for "last contacted")
+  const lastDateByRest = {};
+  phoneTests.forEach(t => {
+    const d = t.date || (t.lastUpdatedAt ? t.lastUpdatedAt.slice(0,10) : '');
+    if (!d) return;
+    if (!lastDateByRest[t.restaurantId] || d > lastDateByRest[t.restaurantId]) lastDateByRest[t.restaurantId] = d;
+  });
 
   // Apply filters
   let filtered = eligible.filter(s => {
     if (nameFilter && !(s.name || '').toLowerCase().includes(nameFilter)) return false;
     if (statusFilter) {
-      const t = phoneByRest[s.id];
-      const stat = t?.status || '';
+      const statuses = s.cards.map(c => phoneByCard[`${s.id}|${c}`]?.status || '');
       if (statusFilter === 'New') {
-        if (stat && stat !== 'New') return false;
+        const anyTouched = statuses.some(st => st && st !== 'New');
+        if (anyTouched) return false;
       } else {
-        if (stat !== statusFilter) return false;
+        if (!statuses.includes(statusFilter)) return false;
       }
     }
     return true;
   });
 
-  // Compute impact stats (over ALL phone tests, not just filtered eligible)
+  // Compute impact stats
   const calledIds = new Set();
   let midsCount = 0, doneCount = 0, revCaptured = 0;
   phoneTests.forEach(t => {
-    if (t.lastContacted || t.status || t.notes || t.visaAmount || t.mcAmount || t.amexAmount) calledIds.add(t.restaurantId);
+    calledIds.add(t.restaurantId);
     if (t.status === 'MIDs run') midsCount++;
     if (t.status === 'Trx Submitted: DONE!') {
       doneCount++;
       const spot = spots.find(sp => sp.id === t.restaurantId);
-      if (spot && spot.rev) {
-        // Sum rev across all cards the restaurant needed
-        spot.cards.forEach(c => { if (spot.rev[c] != null) revCaptured += Number(spot.rev[c]) || 0; });
-      }
+      if (spot && spot.rev && t.card && spot.rev[t.card] != null) revCaptured += Number(spot.rev[t.card]) || 0;
     }
   });
   const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -2527,8 +2538,8 @@ function renderPhoneBrowse() {
   if (sortBy === 'gmv-desc') filtered.sort((a, b) => (b.gmv || 0) - (a.gmv || 0));
   else if (sortBy === 'name-asc') filtered.sort((a, b) => a.name.localeCompare(b.name));
   else if (sortBy === 'last-asc') filtered.sort((a, b) => {
-    const la = phoneByRest[a.id]?.lastContacted || '';
-    const lb = phoneByRest[b.id]?.lastContacted || '';
+    const la = lastDateByRest[a.id] || '';
+    const lb = lastDateByRest[b.id] || '';
     if (!la && !lb) return 0; if (!la) return -1; if (!lb) return 1;
     return new Date(la) - new Date(lb);
   });
@@ -2541,10 +2552,10 @@ function renderPhoneBrowse() {
   }
 
   tbody.innerHTML = filtered.map(s => {
-    const t = phoneByRest[s.id] || {};
-    const stat = t.status || 'New';
-    const done = PHONE_BLOCKING_STATUSES.includes(stat);
-    const rowBg = done ? 'background:#f0faf4;' : '';
+    const cardTest = (card) => phoneByCard[`${s.id}|${card}`] || {};
+    const allTests = s.cards.map(c => cardTest(c)).filter(x => x && x.status);
+    const allDone = allTests.length === s.cards.length && allTests.every(x => PHONE_BLOCKING_STATUSES.includes(x.status));
+    const rowBg = allDone ? 'background:#f0faf4;' : '';
     const cardCell = (card) => {
       const isNeeded = s.cards.includes(card);
       if (!isNeeded) return `<td style="color:var(--text-3);font-size:12px;text-align:center;padding:6px;${rowBg}">—</td>`;
@@ -2552,13 +2563,22 @@ function renderPhoneBrowse() {
       if (slot && slot.status !== 'Open' && !slot.phoneBlocked) {
         return `<td style="color:var(--text-3);font-size:10px;text-align:center;background:#f5f5f5;padding:6px;">claimed<br>in-person</td>`;
       }
-      const amtField = card === 'Visa' ? 'visaAmount' : (card === 'Mastercard' ? 'mcAmount' : 'amexAmount');
-      const amt = t[amtField] || '';
-      return `<td style="padding:6px;${rowBg}">
-        <input type="number" step="0.01" value="${amt}" placeholder="$0.00" onblur="updatePhoneRow(${s.id}, '${amtField}', this.value)" style="font-size:12px;font-family:'DM Mono',monospace;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;">
+      const t = cardTest(card);
+      const amt = t.amount || '';
+      const stat = t.status || 'New';
+      const done = PHONE_BLOCKING_STATUSES.includes(stat);
+      return `<td style="padding:6px;${done ? 'background:#f0faf4;' : ''}">
+        <input type="number" step="0.01" value="${amt}" placeholder="$0.00" onblur="updatePhoneCard(${s.id}, '${card}', 'amount', this.value)" style="font-size:12px;font-family:'DM Mono',monospace;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;">
+        <select onchange="updatePhoneCard(${s.id}, '${card}', 'status', this.value)" style="font-size:11px;padding:3px 4px;width:100%;box-sizing:border-box;display:block;margin-top:3px;">
+          <option value="" ${!stat || stat === 'New' ? 'selected' : ''}>New</option>
+          ${PHONE_STATUSES.filter(x => x !== 'New').map(st => `<option value="${st}" ${stat === st ? 'selected' : ''}>${st}</option>`).join('')}
+        </select>
       </td>`;
     };
-    const lastContacted = t.lastContacted || '';
+    const lastContacted = lastDateByRest[s.id] || '';
+    // Notes from any existing card test (they share); we save to the first one we find
+    const anyTestWithNotes = allTests.find(x => x.notes) || allTests[0];
+    const notesValue = anyTestWithNotes?.notes || '';
     const prioColor = s.priority === 'High' ? '#8C2418' : (s.priority === 'Medium' ? '#7A4E00' : '#1A5C36');
     const prioBg    = s.priority === 'High' ? '#FFF0EE' : (s.priority === 'Medium' ? '#FFF8EC' : '#F0FAF4');
     return `<tr style="${rowBg}">
@@ -2578,71 +2598,93 @@ function renderPhoneBrowse() {
       ${cardCell('Visa')}
       ${cardCell('Mastercard')}
       ${cardCell('Amex')}
-      <td style="padding:6px;${rowBg}">
-        <select onchange="updatePhoneRow(${s.id}, 'status', this.value)" style="font-size:12px;padding:4px 6px;width:100%;box-sizing:border-box;">
-          <option value="" ${!stat || stat === 'New' ? 'selected' : ''}>New</option>
-          ${PHONE_STATUSES.filter(s => s !== 'New').map(st => `<option value="${st}" ${stat === st ? 'selected' : ''}>${st}</option>`).join('')}
-        </select>
-      </td>
-      <td style="padding:6px;${rowBg}"><input type="date" value="${lastContacted}" onchange="updatePhoneRow(${s.id}, 'lastContacted', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);width:100%;box-sizing:border-box;"></td>
-      <td style="padding:6px;${rowBg}"><textarea onblur="updatePhoneRow(${s.id}, 'notes', this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:100%;min-height:50px;resize:vertical;box-sizing:border-box;">${t.notes || ''}</textarea></td>
+      <td style="padding:6px;${rowBg};font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);text-align:center;">${lastContacted || '—'}</td>
+      <td style="padding:6px;${rowBg}"><textarea onblur="updatePhoneRestaurantNotes(${s.id}, this.value)" placeholder="Call notes…" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:100%;min-height:50px;resize:vertical;box-sizing:border-box;">${notesValue}</textarea></td>
     </tr>`;
   }).join('');
 }
 
-// Auto-save a single field for a restaurant's phone test row.
+// Auto-save a single field for a (restaurant, card) phone test row.
 // Creates the row if it doesn't exist; otherwise updates only that cell.
-const _pendingPhoneSaves = {};
-async function updatePhoneRow(restaurantId, field, value) {
+async function updatePhoneCard(restaurantId, card, field, value) {
   const s = spots.find(r => r.id === restaurantId);
   if (!s) return;
-  let t = phoneTests.find(x => x.restaurantId === restaurantId);
+  let t = phoneTests.find(x => x.restaurantId === restaurantId && x.card === card);
   const stamp = new Date().toISOString();
+  const network = card.toUpperCase(); // VISA / MASTERCARD / AMEX
+  const cardInfo = PHONE_TEST_CARDS[card] || {};
 
   if (!t) {
-    // Create a new row in the sheet with this field set
+    // Create a new row
     const row = {
-      restaurantId: restaurantId,
       restaurantName: s.name,
-      address: s.addr,
-      city: s.market,
-      visaAmount: '', mcAmount: '', amexAmount: '',
-      status: '',
+      restaurantId: restaurantId,
+      cardNetwork: network,
+      cardId: cardInfo.cardId || '',
+      amount: '',
+      date: '',
+      status: 'New',
+      midSubmitted: false,
       notes: '',
-      lastContacted: '',
-      lastUpdatedBy: userProfile.email,
+      testerEmail: userProfile.email,
       lastUpdatedAt: stamp,
     };
     row[field] = value;
+    // If status was set, also stamp date with today (per-card)
+    if (field === 'status' && value && !row.date) row.date = new Date().toISOString().slice(0,10);
     try {
       await appendToSheet('Phone Tests', [
-        row.restaurantId, row.restaurantName, row.address, row.city,
-        row.visaAmount, row.mcAmount, row.amexAmount,
-        row.status, row.notes, row.lastContacted, row.lastUpdatedBy, row.lastUpdatedAt
+        row.restaurantName, row.restaurantId, row.cardNetwork, row.cardId,
+        row.amount, row.date, row.status, row.midSubmitted ? 'TRUE' : 'FALSE',
+        row.notes, row.testerEmail, row.lastUpdatedAt
       ]);
       await loadSpots();
     } catch(e) { console.error('Failed to create phone test row:', e); alert('Failed to save: ' + e.message); }
     return;
   }
 
-  // Update existing row's specific cell
+  // Update existing row
   t[field] = value;
-  t.lastUpdatedBy = userProfile.email;
+  t.testerEmail = userProfile.email;
   t.lastUpdatedAt = stamp;
+  // If status is being set and date is empty, stamp today
+  if (field === 'status' && value && !t.date) {
+    t.date = new Date().toISOString().slice(0,10);
+  }
   const fieldToCol = {
-    visaAmount: 'E', mcAmount: 'F', amexAmount: 'G',
-    status: 'H', notes: 'I', lastContacted: 'J',
+    amount: 'E', date: 'F', status: 'G',
+    midSubmitted: 'H', notes: 'I',
   };
   const col = fieldToCol[field];
   if (!col || !t._sheetRow) return;
   try {
-    await updateSheetCell(`Phone Tests!${col}${t._sheetRow}`, value);
-    await updateSheetCell(`Phone Tests!K${t._sheetRow}`, userProfile.email);
-    await updateSheetCell(`Phone Tests!L${t._sheetRow}`, stamp);
-    // If status was updated, reload so card-blocking takes effect
+    const writeVal = field === 'midSubmitted' ? (value ? 'TRUE' : 'FALSE') : value;
+    await updateSheetCell(`Phone Tests!${col}${t._sheetRow}`, writeVal);
+    if (field === 'status' && t.date) {
+      await updateSheetCell(`Phone Tests!F${t._sheetRow}`, t.date);
+    }
+    await updateSheetCell(`Phone Tests!J${t._sheetRow}`, userProfile.email);
+    await updateSheetCell(`Phone Tests!K${t._sheetRow}`, stamp);
     if (field === 'status') await loadSpots();
-    else renderPhoneBrowse(); // refresh impact stats / row styling
+    else renderPhoneBrowse();
   } catch(e) { console.error(e); alert('Failed to save: ' + e.message); }
+}
+
+// Update notes across all phone test rows for a restaurant (denormalized for convenience).
+async function updatePhoneRestaurantNotes(restaurantId, value) {
+  const tests = phoneTests.filter(x => x.restaurantId === restaurantId);
+  if (tests.length === 0) {
+    // No tests yet — nothing to attach the note to. We'll let it save on next card update.
+    return;
+  }
+  try {
+    for (const t of tests) {
+      if (!t._sheetRow) continue;
+      await updateSheetCell(`Phone Tests!I${t._sheetRow}`, value);
+      t.notes = value;
+    }
+    renderPhoneBrowse();
+  } catch(e) { console.error(e); alert('Failed to save notes: ' + e.message); }
 }
 
 function renderPhoneAdmin() {
@@ -2657,26 +2699,45 @@ function renderPhoneAdmin() {
   });
   filtered.sort((a, b) => new Date(b.lastUpdatedAt || 0) - new Date(a.lastUpdatedAt || 0));
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter || statusFilter ? 'No phone tests match your filters' : 'No phone tests yet'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter || statusFilter ? 'No phone tests match your filters' : 'No phone tests yet'}</td></tr>`;
     return;
   }
-  const fmtAmt = amt => amt ? `$${parseFloat(amt || 0).toFixed(2)}` : '<span style="color:var(--text-3);">—</span>';
   tbody.innerHTML = filtered.map(t => {
+    const idx = phoneTests.indexOf(t);
     const stat = t.status || 'New';
     const done = PHONE_BLOCKING_STATUSES.includes(stat);
     return `<tr style="${done ? 'background:#f0faf4;' : ''}">
-      <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${t.lastContacted || (t.lastUpdatedAt ? t.lastUpdatedAt.slice(0,10) : '—')}</td>
-      <td><div style="font-size:11px;color:var(--text-3);">${t.lastUpdatedBy || '—'}</div></td>
-      <td style="font-size:13px;font-weight:500;"><div>${t.restaurantName}</div><div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;">ID: ${t.restaurantId}</div></td>
-      <td style="font-size:12px;color:var(--text-2);">${t.city || '—'}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;">${fmtAmt(t.visaAmount)}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;">${fmtAmt(t.mcAmount)}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;">${fmtAmt(t.amexAmount)}</td>
-      <td colspan="1" style="font-size:12px;font-weight:${done ? '600' : '400'};color:${done ? '#1A5C36' : 'var(--text-2)'};">${stat}</td>
-      <td colspan="1" style="font-size:12px;color:var(--text-2);">${t.notes || '—'}</td>
-      <td style="font-size:11px;color:var(--text-3);" colspan="2">${t.lastUpdatedAt ? new Date(t.lastUpdatedAt).toLocaleString() : '—'}</td>
+      <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${t.date || (t.lastUpdatedAt ? t.lastUpdatedAt.slice(0,10) : '—')}</td>
+      <td style="font-size:13px;font-weight:500;">${t.restaurantName}</td>
+      <td style="font-size:12px;color:var(--text-3);font-family:'DM Mono',monospace;">${t.restaurantId}</td>
+      <td style="font-size:11px;font-weight:600;font-family:'DM Mono',monospace;letter-spacing:0.04em;">${t.cardNetwork}</td>
+      <td style="font-size:13px;font-family:'DM Mono',monospace;">${t.amount ? '$' + parseFloat(t.amount).toFixed(2) : '—'}</td>
+      <td>
+        <select onchange="updatePhoneAdminField(${idx}, 'status', this.value)" style="font-size:12px;padding:4px 6px;width:auto;">
+          <option value="" ${!stat || stat === 'New' ? 'selected' : ''}>New</option>
+          ${PHONE_STATUSES.filter(x => x !== 'New').map(st => `<option value="${st}" ${stat === st ? 'selected' : ''}>${st}</option>`).join('')}
+        </select>
+      </td>
+      <td style="text-align:center;"><input type="checkbox" ${t.midSubmitted ? 'checked' : ''} onchange="updatePhoneAdminField(${idx}, 'midSubmitted', this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:#1A5C36;" /></td>
+      <td><textarea onblur="updatePhoneAdminField(${idx}, 'notes', this.value)" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:150px;min-height:50px;resize:vertical;">${t.notes || ''}</textarea></td>
+      <td style="font-size:11px;color:var(--text-3);">${t.testerEmail || '—'}</td>
     </tr>`;
   }).join('');
+}
+
+async function updatePhoneAdminField(idx, field, value) {
+  const t = phoneTests[idx];
+  if (!t || !t._sheetRow) return;
+  t[field] = value;
+  const fieldToCol = { amount: 'E', date: 'F', status: 'G', midSubmitted: 'H', notes: 'I' };
+  const col = fieldToCol[field];
+  if (!col) return;
+  const writeVal = field === 'midSubmitted' ? (value ? 'TRUE' : 'FALSE') : value;
+  try {
+    await updateSheetCell(`Phone Tests!${col}${t._sheetRow}`, writeVal);
+    await updateSheetCell(`Phone Tests!K${t._sheetRow}`, new Date().toISOString());
+    if (field === 'status') await loadSpots();
+  } catch(e) { console.error(e); alert('Failed to save: ' + e.message); }
 }
 
 // loadSpots() is triggered by afterAuth() once sign-in completes.
