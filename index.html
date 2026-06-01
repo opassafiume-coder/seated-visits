@@ -2463,9 +2463,13 @@ function getPhoneEligibleSpots() {
   const minPrioRank = PRIORITY_RANK[minPriority] != null ? PRIORITY_RANK[minPriority] : 0;
 
   let eligible = spots.filter(s => {
-    // Must have at least one Open card
-    const hasOpen = s.cards.some(card => s.cardSlots[card]?.status === 'Open');
-    if (!hasOpen) return false;
+    // Must have at least one card that's either Open OR already being worked on via phone (phoneBlocked).
+    // Cards that were claimed in-person by someone else (not phoneBlocked, not Open) disqualify only that card.
+    const hasOpenOrPhone = s.cards.some(card => {
+      const slot = s.cardSlots[card];
+      return !slot || slot.status === 'Open' || slot.phoneBlocked;
+    });
+    if (!hasOpenOrPhone) return false;
     // City exclusion
     if (excludedCities.includes((s.market || '').toLowerCase())) return false;
     // GMV threshold
