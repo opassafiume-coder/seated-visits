@@ -1559,38 +1559,41 @@ async function _doSubmitClaim() {
   }
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
-    emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
-      to_email: CONFIG.ADMIN_EMAIL,
-      restaurant: s.name,
-      address: s.addr,
-      market: s.market,
+    // ONE send per submission. Template delivers to claimant_email; admin gets a copy via the template's connected inbox.
+    await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+      to_email: email,
       claimant_name: name,
       claimant_email: email,
       relation: rel,
       employee_email: isFriendFamily ? employeeEmail : 'N/A',
-      cards: selectedCard,
-      reimb: lockedReimb ? `$${lockedReimb}` : 'TBD',
-      claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-    });
-    const claimInstructions = {
-      claimant_name: name,
-      claimant_email: email,
       restaurant: s.name,
       address: s.addr,
+      market: s.market,
       cards: selectedCard,
       reimb: lockedReimb ? `$${lockedReimb}` : 'TBD',
+      claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
       card_reminder: `Before heading to ${s.name}, make sure your ${selectedCard} card is already linked in the Seated app. If it's not linked yet, do that before you go.`,
       deadline_note: `You have 48 hours from now to complete your visit. If the visit isn't done in time, your spot will be released back into the pool.`,
-    };
-    emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, claimInstructions);
-    // Also notify the employee if friend/family
+    });
+    // If friend/family, ONE separate send to the employee with the same details
     if (isFriendFamily) {
-      emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
-        ...claimInstructions,
+      await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+        to_email: employeeEmail,
+        claimant_name: name,
         claimant_email: employeeEmail,
+        relation: rel,
+        employee_email: employeeEmail,
+        restaurant: s.name,
+        address: s.addr,
+        market: s.market,
+        cards: selectedCard,
+        reimb: lockedReimb ? `$${lockedReimb}` : 'TBD',
+        claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+        card_reminder: `Your friend/family ${name} just claimed a Seated visit at ${s.name} using your employee account.`,
+        deadline_note: `They have 48 hours from now to complete the visit.`,
       });
     }
-  } catch(e) {}
+  } catch(e) { console.error('Email send failed:', e); }
 
   document.getElementById('claim-form-container').style.display = 'none';
   document.getElementById('conf-restaurant').textContent = s.name;
@@ -2269,9 +2272,9 @@ async function _doSubmitPostVisit() {
   };
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
-    emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_REPORT_TEMPLATE, { ...summaryData, to_email: CONFIG.ADMIN_EMAIL });
-    emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_REPORT_TEMPLATE, { ...summaryData, to_email: email });
-  } catch(e) {}
+    // ONE send. Template delivers to the submitter; admin gets a copy via the template's connected inbox.
+    await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_REPORT_TEMPLATE, { ...summaryData, to_email: email });
+  } catch(e) { console.error('PV email send failed:', e); }
 
   document.getElementById('pv-success').style.display = 'block';
   pvSelectedClaim = null;
@@ -2771,7 +2774,7 @@ async function notifyPhoneClearedClaim(restaurantId, blockingStatus) {
     const claimTimeStr = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     for (const r of recipients) {
       const cardsList = r.cards.join(', ');
-      // Notify the claimant
+      // ONE send per claimant. Template delivers to the claimant; admin gets a copy via the template's connected inbox.
       try {
         await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
           to_email: r.email,
@@ -2789,24 +2792,6 @@ async function notifyPhoneClearedClaim(restaurantId, blockingStatus) {
           deadline_note: 'Questions? Reach out to Olivia at (502) 296-9770 or opassafiume@seatedapp.io.'
         });
       } catch(e) { console.error('Failed to notify claimant:', r.email, e); }
-      // Notify admin
-      try {
-        await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
-          to_email: CONFIG.ADMIN_EMAIL,
-          restaurant: '📞 Phone test cleared in-person claim',
-          address: `${s.name} (${s.market})`,
-          market: s.market,
-          claimant_name: r.name,
-          claimant_email: r.email,
-          relation: r.rel || '',
-          employee_email: r.employeeEmail || 'N/A',
-          cards: cardsList,
-          reimb: 'N/A',
-          claim_time: claimTimeStr,
-          card_reminder: `${r.name} (${r.email}) had claimed ${cardsList} at ${s.name}. Their claim is no longer needed — trx was collected via phone (status: ${blockingStatus}).`,
-          deadline_note: 'They have been notified by email automatically.'
-        });
-      } catch(e) { console.error('Failed to notify admin:', e); }
     }
   } catch(e) { console.error('Phone notification batch failed:', e); }
 }
