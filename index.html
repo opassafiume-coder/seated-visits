@@ -878,7 +878,10 @@ async function loadRestaurantsFromSheet() {
         reimb: { Visa: Math.round(reimbVisa), Mastercard: Math.round(reimbMC), Amex: Math.round(reimbAmex) },
       });
     }
-    RESTAURANTS = rows;
+    // Exclude restaurants from the active list (closed, temporarily paused, etc.)
+    // Add lowercase names to this array to hide them everywhere.
+    const EXCLUDED_RESTAURANTS = ['henry and the lion'];
+    RESTAURANTS = rows.filter(r => !EXCLUDED_RESTAURANTS.includes(String(r.name || '').toLowerCase().trim()));
   } catch(e) {
     console.error('Failed to load sheet:', e);
     RESTAURANTS = [];
@@ -2170,6 +2173,12 @@ async function submitPostVisit() {
   _pvSubmitting = true;
   try {
     await _doSubmitPostVisit();
+  } catch(e) {
+    console.error('PV submit failed:', e);
+    alert('Submit failed: ' + e.message + '\nPlease try again or contact Olivia.');
+    // Reset the button so they can retry
+    const submitBtn = document.querySelector('#pv-form .btn-primary');
+    if (submitBtn) { submitBtn.textContent = 'Submit report'; submitBtn.disabled = false; }
   } finally {
     _pvSubmitting = false;
   }
@@ -2279,7 +2288,18 @@ async function _doSubmitPostVisit() {
     await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_REPORT_TEMPLATE, { ...summaryData, to_email: email });
   } catch(e) { console.error('PV email send failed:', e); }
 
-  document.getElementById('pv-success').style.display = 'block';
+  // Reset submit button and show success confirmation
+  const submitBtn = document.querySelector('#pv-form .btn-primary');
+  if (submitBtn) {
+    submitBtn.textContent = '✅ Submitted!';
+    submitBtn.style.background = '#1A5C36';
+    submitBtn.disabled = true;
+  }
+  const successEl = document.getElementById('pv-success');
+  if (successEl) {
+    successEl.style.display = 'block';
+    successEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
   pvSelectedClaim = null;
 }
 
