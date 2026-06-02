@@ -2289,11 +2289,11 @@ async function _doSubmitPostVisit() {
   } catch(e) { console.error('PV email send failed:', e); }
 
   // Reset submit button and show success confirmation
-  const submitBtn = document.querySelector('#pv-form .btn-primary');
-  if (submitBtn) {
-    submitBtn.textContent = '✅ Submitted!';
-    submitBtn.style.background = '#1A5C36';
-    submitBtn.disabled = true;
+  const successBtn = document.querySelector('#pv-form .btn-primary');
+  if (successBtn) {
+    successBtn.textContent = '✅ Submitted!';
+    successBtn.style.background = '#1A5C36';
+    successBtn.disabled = true;
   }
   const successEl = document.getElementById('pv-success');
   if (successEl) {
