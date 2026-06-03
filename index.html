@@ -566,10 +566,11 @@
             <th>Submitted to MID</th>
             <th>Notes</th>
             <th>Tester</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="phone-admin-tbody">
-          <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">No phone tests yet</td></tr>
+          <tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-3);">No phone tests yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -2831,7 +2832,7 @@ function renderPhoneAdmin() {
   });
   filtered.sort((a, b) => new Date(b.lastUpdatedAt || 0) - new Date(a.lastUpdatedAt || 0));
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter || statusFilter ? 'No phone tests match your filters' : 'No phone tests yet'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter || statusFilter ? 'No phone tests match your filters' : 'No phone tests yet'}</td></tr>`;
     return;
   }
   tbody.innerHTML = filtered.map(t => {
@@ -2853,8 +2854,33 @@ function renderPhoneAdmin() {
       <td style="text-align:center;"><input type="checkbox" ${t.midSubmitted ? 'checked' : ''} onchange="updatePhoneAdminField(${idx}, 'midSubmitted', this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:#1A5C36;" /></td>
       <td><textarea onblur="updatePhoneAdminField(${idx}, 'notes', this.value)" style="font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:150px;min-height:50px;resize:vertical;">${t.notes || ''}</textarea></td>
       <td style="font-size:11px;color:var(--text-3);">${t.testerEmail || '—'}</td>
+      <td><button onclick="deletePhoneTest(${idx})" style="font-size:12px;padding:4px 8px;border:1px solid #fca5a5;border-radius:6px;background:#fef2f2;color:#dc2626;cursor:pointer;">🗑</button></td>
     </tr>`;
   }).join('');
+}
+
+async function deletePhoneTest(idx) {
+  const t = phoneTests[idx];
+  if (!t) return;
+  if (!confirm(`Delete phone test for ${t.restaurantName} — ${t.cardNetwork}? This cannot be undone.`)) return;
+  const sheetRow = t._sheetRow;
+  if (sheetRow) {
+    try {
+      const meta = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+      const metaJson = await meta.json();
+      const sheet = (metaJson.sheets || []).find(s => s.properties.title === 'Phone Tests');
+      if (!sheet) throw new Error('Phone Tests tab not found');
+      const sheetId = sheet.properties.sheetId;
+      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: sheetRow - 1, endIndex: sheetRow } } }] })
+      });
+      if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+    } catch(e) { alert('Failed to delete: ' + e.message); return; }
+  }
+  phoneTests.splice(idx, 1);
+  await loadSpots();
 }
 
 async function updatePhoneAdminField(idx, field, value) {
