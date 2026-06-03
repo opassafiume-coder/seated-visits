@@ -2710,7 +2710,7 @@ async function updatePhoneCard(restaurantId, card, field, value) {
       await loadSpots();
       if (becameBlocking) await notifyPhoneClearedClaim(restaurantId, value);
     }
-    else renderPhoneBrowse();
+    // No re-render for non-status fields — preserves focus/typing
   } catch(e) { console.error(e); alert('Failed to save: ' + e.message); }
 }
 
@@ -2764,7 +2764,9 @@ async function updatePhoneRestaurant(restaurantId, field, value) {
         t.lastUpdatedAt = stamp;
       }
     }
-    await loadSpots();
+    // Only re-render for status changes (affects card-blocking + row styling).
+    // Non-status fields skip reload to preserve focus/typing.
+    if (field === 'status') await loadSpots();
     // Notify in-person claimants if this was a transition into a blocking state
     if (isStatusTransitionToBlocking) {
       await notifyPhoneClearedClaim(restaurantId, value);
