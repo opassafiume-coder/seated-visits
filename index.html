@@ -159,6 +159,7 @@
   <div id="view-browse" class="view active">
     <div id="map"></div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+      <button id="near-me-btn" onclick="zoomMapToUserLocation()" style="font-family:'DM Sans',sans-serif;font-size:14px;padding:8px 14px;border:1px solid var(--border);border-radius:6px;background:#1A1814;color:#fff;cursor:pointer;font-weight:500;">📍 Near me</button>
       <select id="browse-market-filter" onchange="filterBrowseMarket()" style="font-family:'DM Sans',sans-serif;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;min-width:200px;">
         <option value="">— All cities —</option>
       </select>
@@ -1134,6 +1135,54 @@ function initMap() {
   setTimeout(() => map.invalidateSize(), 100);
 }
 
+// User's geolocation (set by "Near me" button)
+let userLatLng = null;
+let userMarker = null;
+
+function zoomMapToUserLocation() {
+  const btn = document.getElementById('near-me-btn');
+  if (!navigator.geolocation) {
+    alert('Your browser does not support location services.');
+    return;
+  }
+  btn.textContent = '📍 Locating…';
+  btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      if (!map) initMap();
+      // Drop a "You are here" pin
+      if (userMarker) map.removeLayer(userMarker);
+      userMarker = L.circleMarker([userLatLng.lat, userLatLng.lng], {
+        radius: 8, fillColor: '#1A4A8A', color: '#fff', weight: 3, opacity: 1, fillOpacity: 1
+      }).addTo(map);
+      userMarker.bindTooltip('You are here', { direction: 'top', offset: [0, -8] });
+      // Zoom to a ~20mi radius around the user
+      map.setView([userLatLng.lat, userLatLng.lng], 11);
+      // Re-render list sorted by distance from user
+      renderBrowse();
+      btn.textContent = '📍 Near me';
+      btn.disabled = false;
+    },
+    err => {
+      btn.textContent = '📍 Near me';
+      btn.disabled = false;
+      alert('Could not get your location: ' + err.message + '\n\nMake sure you allowed location access in your browser.');
+    },
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+  );
+}
+
+// Haversine distance in miles between two lat/lng points
+function distanceMiles(lat1, lng1, lat2, lng2) {
+  const R = 3958.8;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 function renderMap() {
   if (!map) initMap();
   mapMarkers.forEach(m => map.removeLayer(m));
@@ -1143,15 +1192,19 @@ function renderMap() {
 
   openSpots.forEach(s => {
     const isSelected = !selectedMarket || s.market === selectedMarket;
+    // Color by priority for quick visual scan
+    const prioColor = s.priority === 'High' ? '#8C2418' : (s.priority === 'Medium' ? '#F6A623' : '#1A5C36');
     const marker = L.circleMarker([s.lat, s.lng], {
-      radius: isSelected ? 9 : 6,
-      fillColor: isSelected ? '#1A1814' : '#BBBBBB',
+      radius: isSelected ? 11 : 6,
+      fillColor: isSelected ? prioColor : '#BBBBBB',
       color: '#fff',
       weight: 2,
       opacity: 1,
       fillOpacity: isSelected ? 0.9 : 0.4
     }).addTo(map);
-    marker.bindTooltip(`<strong>${s.name}</strong><br>${s.market}`, { direction: 'top', offset: [0, -8] });
+    const openCards = s.cards.filter(c => s.cardSlots[c]?.status === 'Open');
+    const distStr = userLatLng ? ` · ${distanceMiles(userLatLng.lat, userLatLng.lng, s.lat, s.lng).toFixed(1)} mi away` : '';
+    marker.bindTooltip(`<strong>${s.name}</strong><br>${s.market} · ${openCards.join(', ')}${distStr}`, { direction: 'top', offset: [0, -8] });
     if (isSelected) {
       marker.on('click', () => {
         const sel = document.getElementById('browse-market-filter');
@@ -1495,8 +1548,26 @@ function renderBrowse() {
   const selectedCard = document.getElementById('browse-card-filter') ? document.getElementById('browse-card-filter').value : '';
   const restoList = document.getElementById('resto-list');
 
+  // Tag each spot with distance from user if location set, so card rendering can show it
+  if (userLatLng) {
+    spots.forEach(s => { s._distMi = distanceMiles(userLatLng.lat, userLatLng.lng, s.lat, s.lng); });
+  }
+
   const markets = [...new Set(RESTAURANTS.map(r => r.market))].sort();
   let html = '';
+  // When user location is known and no city is selected, prepend a "Nearest to you" group
+  if (userLatLng && !selectedMarket) {
+    const nearby = spots
+      .filter(s => !selectedCard || s.cards.includes(selectedCard))
+      .filter(s => s.cards.some(c => s.cardSlots[c]?.status === 'Open'))
+      .filter(s => s._distMi <= 50)
+      .sort((a, b) => a._distMi - b._distMi)
+      .slice(0, 10);
+    if (nearby.length > 0) {
+      html += `<div class="market-label" style="color:#1A4A8A;background:#EBF3FF;padding:6px 10px;border-radius:6px;">📍 NEAREST TO YOU (within 50 mi)</div>`;
+      nearby.forEach(s => { html += renderRestoCardHTML(s); });
+    }
+  }
   markets.forEach(m => {
     if (selectedMarket && m !== selectedMarket) return;
     const items = spots.filter(s => s.market === m && (!selectedCard || s.cards.includes(selectedCard)));
@@ -1522,10 +1593,11 @@ function renderBrowse() {
           ${reimbLabel}
         </div>`;
       }).join('');
+      const distBadge = (userLatLng && s._distMi != null) ? `<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:#EBF3FF;color:#1A4A8A;margin-left:6px;">${s._distMi.toFixed(1)} mi</span>` : '';
       html += `<div class="card ${allTaken ? 'taken' : ''}" id="card-${s.id}">
         <div class="card-row">
           <div>
-            <div class="card-name">${s.name}</div>
+            <div class="card-name">${s.name}${distBadge}</div>
             <div class="card-addr">${s.addr}</div>
             <div class="card-meta"></div>
           </div>
@@ -1536,6 +1608,38 @@ function renderBrowse() {
   });
   restoList.innerHTML = html;
   restoList.style.display = 'block';
+}
+
+// Helper: render one restaurant card HTML — used by both the city loop and the "Near me" section
+function renderRestoCardHTML(s) {
+  const allTaken = s.cards.every(card => s.cardSlots[card]?.status !== 'Open');
+  const cardButtons = s.cards.map(card => {
+    const slot = s.cardSlots[card];
+    const isTaken = slot?.status !== 'Open';
+    const reimb = s.reimb && s.reimb[card] ? s.reimb[card] : 0;
+    if (!isTaken && reimb === 0) return '';
+    const reimbLabel = reimb > 0 ? `<div style="font-size:11px;color:var(--text-3);margin-top:2px;text-align:center;">up to $${reimb}</div>` : '';
+    if (isTaken) {
+      return `<div style="display:flex;flex-direction:column;align-items:center;">
+        <span style="font-size:12px;padding:6px 12px;border-radius:6px;background:var(--border);color:var(--text-3);font-weight:500;white-space:nowrap;">${card} · ${slot?.status}</span>
+        ${reimbLabel}
+      </div>`;
+    }
+    return `<div style="display:flex;flex-direction:column;align-items:center;">
+      <button class="claim-btn" onclick="openForm(${s.id},'${card}')" style="font-size:12px;">Claim ${card}</button>
+      ${reimbLabel}
+    </div>`;
+  }).join('');
+  const distBadge = (userLatLng && s._distMi != null) ? `<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:#EBF3FF;color:#1A4A8A;margin-left:6px;">${s._distMi.toFixed(1)} mi</span>` : '';
+  return `<div class="card ${allTaken ? 'taken' : ''}" id="nearby-card-${s.id}">
+    <div class="card-row">
+      <div>
+        <div class="card-name">${s.name}${distBadge}</div>
+        <div class="card-addr">${s.addr} · ${s.market}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">${cardButtons}</div>
+    </div>
+  </div>`;
 }
 
 function openForm(id, card) {
