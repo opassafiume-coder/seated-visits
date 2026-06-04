@@ -1254,25 +1254,36 @@ async function loadSpots() {
 // Dedupes via localStorage so one orphan triggers ONE round of emails, not one per refresh.
 async function detectOrphanedClaims(claimsMap) {
   const knownIds = new Set(RESTAURANTS.map(r => r.id));
+  // Build set of (restaurantName|card) that already have a PV report submitted (any non-Voided status).
+  // Those claims are considered "complete" — don't flag them.
+  const norm = s => String(s || '').toLowerCase().trim();
+  const pvSubmittedKeys = new Set(
+    (pvReports || [])
+      .filter(r => (r.adminStatus || 'New') !== 'Voided')
+      .map(r => `${norm(r.restaurant)}|${r.card}`)
+  );
+
   const orphans = [];
   Object.entries(claimsMap).forEach(([rid, byCard]) => {
     const idNum = parseInt(rid);
     if (knownIds.has(idNum)) return;
     Object.entries(byCard).forEach(([card, slot]) => {
-      if (slot.status === 'Claimed' && slot.claimant) {
-        orphans.push({
-          restaurantId: idNum,
-          restaurantName: slot.claimant.restaurantName || '(unknown)',
-          restaurantAddr: slot.claimant.restaurantAddr || '',
-          restaurantMarket: slot.claimant.restaurantMarket || '',
-          card,
-          claimantName: slot.claimant.name,
-          claimantEmail: slot.claimant.email,
-          claimantRel: slot.claimant.rel,
-          employeeEmail: slot.claimant.employeeEmail,
-          claimedAt: slot.claimant.claimedAt,
-        });
-      }
+      if (slot.status !== 'Claimed' || !slot.claimant) return;
+      // Skip if a PV report has already been submitted for this restaurant+card
+      const key = `${norm(slot.claimant.restaurantName)}|${card}`;
+      if (pvSubmittedKeys.has(key)) return;
+      orphans.push({
+        restaurantId: idNum,
+        restaurantName: slot.claimant.restaurantName || '(unknown)',
+        restaurantAddr: slot.claimant.restaurantAddr || '',
+        restaurantMarket: slot.claimant.restaurantMarket || '',
+        card,
+        claimantName: slot.claimant.name,
+        claimantEmail: slot.claimant.email,
+        claimantRel: slot.claimant.rel,
+        employeeEmail: slot.claimant.employeeEmail,
+        claimedAt: slot.claimant.claimedAt,
+      });
     });
   });
   if (orphans.length === 0) return;
@@ -1290,16 +1301,16 @@ async function detectOrphanedClaims(claimsMap) {
   newOrphans.forEach(o => { alreadyNotified[`${o.restaurantId}|${o.card}|${o.claimantEmail}`] = new Date().toISOString(); });
   try { localStorage.setItem('orphanNotifiedClaims', JSON.stringify(alreadyNotified)); } catch(_) {}
 
-  // Send emails
+  // ONE admin-only email summarizing all newly orphaned OPEN claims (no PV submitted).
+  // We do NOT email the claimants — Olivia decides per-case how to follow up.
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
     const stampStr = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-    // ONE admin alert summarizing all new orphans
     const summary = newOrphans.map(o => `• ${o.claimantName} (${o.claimantEmail}) — ${o.restaurantName} [${o.card}] (ID ${o.restaurantId})`).join('\n');
     await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
       to_email: CONFIG.ADMIN_EMAIL,
-      restaurant: `⚠️ ${newOrphans.length} claim(s) affected by sheet update`,
-      address: 'These restaurants were removed from the Restaurants tab but still have active claims:',
+      restaurant: `⚠️ ${newOrphans.length} OPEN claim(s) affected by sheet update`,
+      address: 'These restaurants were removed from the Restaurants tab but still have active OPEN claims (no PV report yet):',
       market: '',
       claimant_name: 'SYSTEM',
       claimant_email: CONFIG.ADMIN_EMAIL,
@@ -1309,29 +1320,9 @@ async function detectOrphanedClaims(claimsMap) {
       reimb: 'N/A',
       claim_time: stampStr,
       card_reminder: summary,
-      deadline_note: 'Please notify the claimants and decide whether to reopen the spot.'
+      deadline_note: 'Reach out to the claimants directly and decide whether to reopen the spot.'
     });
-    // ONE email per affected claimant
-    for (const o of newOrphans) {
-      try {
-        await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
-          to_email: o.claimantEmail,
-          restaurant: o.restaurantName + ' — Visit may not be needed',
-          address: o.restaurantAddr,
-          market: o.restaurantMarket,
-          claimant_name: o.claimantName,
-          claimant_email: o.claimantEmail,
-          relation: o.claimantRel || '',
-          employee_email: o.employeeEmail || 'N/A',
-          cards: o.card,
-          reimb: 'TBD',
-          claim_time: stampStr,
-          card_reminder: `Hi ${o.claimantName}, heads up — the restaurant ${o.restaurantName} was just removed from our active list. Before heading over for your ${o.card} visit, please confirm with Olivia (502) 296-9770 whether this visit is still needed.`,
-          deadline_note: 'Sorry for the late notice — this can happen when restaurant data refreshes.'
-        });
-      } catch(e) { console.error('Failed to notify claimant of orphan:', o.claimantEmail, e); }
-    }
-  } catch(e) { console.error('Orphan notification batch failed:', e); }
+  } catch(e) { console.error('Orphan notification failed:', e); }
 }
 
 async function savePvReports() {
