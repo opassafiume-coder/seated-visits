@@ -1391,7 +1391,6 @@ async function detectOrphanedClaims(claimsMap) {
       address: 'AFFECTED CLAIMS:\n' + summaryLines.join('\n') + '\n\n(These restaurants were removed from the Restaurants tab but still have active OPEN claims with no PV report submitted yet.)',
       market: 'Reach out to each claimant directly and decide whether to reopen the spot.',
       claimant_name: 'SYSTEM ALERT',
-      claimant_email: CONFIG.ADMIN_EMAIL,
       relation: '',
       employee_email: '',
       cards: newOrphans.length + ' affected',
@@ -1790,7 +1789,6 @@ async function _doSubmitClaim() {
     await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
       to_email: email,
       claimant_name: name,
-      claimant_email: email,
       relation: rel,
       employee_email: isFriendFamily ? employeeEmail : 'N/A',
       restaurant: s.name,
@@ -1807,7 +1805,6 @@ async function _doSubmitClaim() {
       await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
         to_email: employeeEmail,
         claimant_name: name,
-        claimant_email: employeeEmail,
         relation: rel,
         employee_email: employeeEmail,
         restaurant: s.name,
@@ -2555,7 +2552,7 @@ async function _doSubmitPostVisit() {
     : `Employee\nSeated email: ${email}`;
   const pvReimb = claimant.reimb != null ? `$${claimant.reimb}` : 'TBD';
   const summaryData = {
-    claimant_name: name, claimant_email: email,
+    claimant_name: name,
     relation: rel, diner_info: dinerInfo,
     restaurant, visit_date: visitDate,
     card_used: card, last_four: last4,
@@ -3111,7 +3108,6 @@ async function notifyPhoneClearedClaim(restaurantId, blockingStatus) {
           address: s.addr,
           market: s.market,
           claimant_name: r.name,
-          claimant_email: r.email,
           relation: r.rel || '',
           employee_email: r.employeeEmail || 'N/A',
           cards: cardsList,
