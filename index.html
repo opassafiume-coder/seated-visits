@@ -1238,6 +1238,92 @@ async function loadSpots() {
   renderPhoneBrowse();
   renderPhoneAdmin();
   applyPhoneTabVisibility();
+  // Detect orphaned claims (restaurant dropped from Restaurants tab) and notify admin/claimants
+  detectOrphanedClaims(claimsMap);
+}
+
+// Detect claims for restaurants that are no longer in the Restaurants tab.
+// Notify admin and the claimant so they don't show up for a visit at a dropped restaurant.
+async function detectOrphanedClaims(claimsMap) {
+  const knownIds = new Set(RESTAURANTS.map(r => r.id));
+  const orphans = [];
+  Object.entries(claimsMap).forEach(([rid, byCard]) => {
+    const idNum = parseInt(rid);
+    if (knownIds.has(idNum)) return;
+    Object.entries(byCard).forEach(([card, slot]) => {
+      if (slot.status === 'Claimed' && slot.claimant) {
+        orphans.push({
+          restaurantId: idNum,
+          restaurantName: slot.claimant.restaurantName || '(unknown)',
+          restaurantAddr: slot.claimant.restaurantAddr || '',
+          restaurantMarket: slot.claimant.restaurantMarket || '',
+          card,
+          claimantName: slot.claimant.name,
+          claimantEmail: slot.claimant.email,
+          claimantRel: slot.claimant.rel,
+          employeeEmail: slot.claimant.employeeEmail,
+          claimedAt: slot.claimant.claimedAt,
+        });
+      }
+    });
+  });
+  if (orphans.length === 0) return;
+
+  // Dedup notifications across page loads using localStorage
+  let alreadyNotified = {};
+  try { alreadyNotified = JSON.parse(localStorage.getItem('orphanNotifiedClaims') || '{}'); } catch(_) {}
+  const newOrphans = orphans.filter(o => {
+    const key = `${o.restaurantId}|${o.card}|${o.claimantEmail}`;
+    return !alreadyNotified[key];
+  });
+  if (newOrphans.length === 0) return;
+
+  // Mark as notified BEFORE sending so we don't double-fire if the page reloads mid-send
+  newOrphans.forEach(o => { alreadyNotified[`${o.restaurantId}|${o.card}|${o.claimantEmail}`] = new Date().toISOString(); });
+  try { localStorage.setItem('orphanNotifiedClaims', JSON.stringify(alreadyNotified)); } catch(_) {}
+
+  // Send emails
+  try {
+    emailjs.init(CONFIG.EMAILJS_PUBLIC);
+    const stampStr = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    // ONE admin alert summarizing all new orphans
+    const summary = newOrphans.map(o => `• ${o.claimantName} (${o.claimantEmail}) — ${o.restaurantName} [${o.card}] (ID ${o.restaurantId})`).join('\n');
+    await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+      to_email: CONFIG.ADMIN_EMAIL,
+      restaurant: `⚠️ ${newOrphans.length} claim(s) affected by sheet update`,
+      address: 'These restaurants were removed from the Restaurants tab but still have active claims:',
+      market: '',
+      claimant_name: 'SYSTEM',
+      claimant_email: CONFIG.ADMIN_EMAIL,
+      relation: '',
+      employee_email: '',
+      cards: newOrphans.length + ' affected claim(s)',
+      reimb: 'N/A',
+      claim_time: stampStr,
+      card_reminder: summary,
+      deadline_note: 'Please notify the claimants and decide whether to reopen the spot.'
+    });
+    // ONE email per affected claimant
+    for (const o of newOrphans) {
+      try {
+        await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+          to_email: o.claimantEmail,
+          restaurant: o.restaurantName + ' — Visit may not be needed',
+          address: o.restaurantAddr,
+          market: o.restaurantMarket,
+          claimant_name: o.claimantName,
+          claimant_email: o.claimantEmail,
+          relation: o.claimantRel || '',
+          employee_email: o.employeeEmail || 'N/A',
+          cards: o.card,
+          reimb: 'TBD',
+          claim_time: stampStr,
+          card_reminder: `Hi ${o.claimantName}, heads up — the restaurant ${o.restaurantName} was just removed from our active list. Before heading over for your ${o.card} visit, please confirm with Olivia (502) 296-9770 whether this visit is still needed.`,
+          deadline_note: 'Sorry for the late notice — this can happen when restaurant data refreshes.'
+        });
+      } catch(e) { console.error('Failed to notify claimant of orphan:', o.claimantEmail, e); }
+    }
+  } catch(e) { console.error('Orphan notification batch failed:', e); }
 }
 
 async function savePvReports() {
