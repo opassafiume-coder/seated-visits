@@ -410,6 +410,7 @@
         <button onclick="restoreHistoricalPvReports()" style="font-size:12px;padding:6px 14px;border:1px solid #d97706;border-radius:8px;background:#fffbeb;color:#92400e;cursor:pointer;font-weight:600;white-space:nowrap;">🔄 Restore Historical PV Reports</button>
         <button onclick="backfillRevAndPushPadma(this)" style="font-size:12px;padding:6px 14px;border:1px solid #1A5C36;border-radius:8px;background:#EDFAF3;color:#1A5C36;cursor:pointer;font-weight:600;white-space:nowrap;">💰 Backfill Rev + Push Padma PVs</button>
         <button onclick="dedupePvReports(this)" style="font-size:12px;padding:6px 14px;border:1px solid #b91c1c;border-radius:8px;background:#fef2f2;color:#b91c1c;cursor:pointer;font-weight:600;white-space:nowrap;">🧹 Remove PV Duplicates</button>
+        <button onclick="dedupePhoneTests(this)" style="font-size:12px;padding:6px 14px;border:1px solid #b91c1c;border-radius:8px;background:#fef2f2;color:#b91c1c;cursor:pointer;font-weight:600;white-space:nowrap;">🧹 Remove Phone Test Duplicates</button>
       </div>
     </div>
     <div class="stats-grid">
@@ -1786,6 +1787,64 @@ async function backfillRevAndPushPadma(btn) {
     await loadSpots();
   } catch(e) {
     alert('❌ Backfill failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function dedupePhoneTests(btn) {
+  if (!confirm('Scan Phone Tests for duplicates (same Admin ID + Card Network) and KEEP the most recently updated one. Delete the rest?\n\nCannot be undone.')) return;
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = 'Scanning…';
+  try {
+    const vals = await fetchSheetValues('Phone Tests!A:L');
+    if (vals.length < 2) { alert('No data to dedupe.'); return; }
+    const h = vals[0];
+    const idIdx = h.indexOf('Admin ID');
+    const cardIdx = h.indexOf('Card Network');
+    const updIdx = h.indexOf('Last Updated At');
+
+    // Group rows by (admin id|card network), find the most recent in each group
+    const groups = {};
+    for (let i = 1; i < vals.length; i++) {
+      const row = vals[i] || [];
+      if (!row[0]) continue;
+      const key = `${row[idIdx]}|${String(row[cardIdx] || '').toUpperCase()}`;
+      const upd = row[updIdx] || '';
+      (groups[key] = groups[key] || []).push({ sheetRow: i + 1, upd });
+    }
+    const toDelete = [];
+    Object.values(groups).forEach(rows => {
+      if (rows.length <= 1) return;
+      // Sort by update timestamp desc; keep [0], delete the rest
+      rows.sort((a, b) => (b.upd || '').localeCompare(a.upd || ''));
+      for (let j = 1; j < rows.length; j++) toDelete.push(rows[j].sheetRow);
+    });
+    if (toDelete.length === 0) { alert('✅ No duplicates found.'); return; }
+    if (!confirm(`Found ${toDelete.length} duplicate row(s). Delete them?`)) return;
+
+    // Get sheet numeric ID
+    const meta = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+    const metaJson = await meta.json();
+    const pt = (metaJson.sheets || []).find(s => s.properties.title === 'Phone Tests');
+    if (!pt) throw new Error('Phone Tests tab not found');
+    const sheetId = pt.properties.sheetId;
+    toDelete.sort((a, b) => b - a);
+    const requests = toDelete.map(row => ({
+      deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: row - 1, endIndex: row } }
+    }));
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests })
+    });
+    if (!res.ok) throw new Error('Batch delete failed: ' + res.status);
+    alert(`✅ Deleted ${toDelete.length} duplicate Phone Test row(s). Reloading…`);
+    await loadSpots();
+  } catch(e) {
+    alert('❌ Dedupe failed: ' + e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
