@@ -2437,6 +2437,9 @@ function selectPvClaim(i) {
   ['pv-date','pv-amount','pv-last4','pv-venmo','pv-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('pv-receipt').value = '';
   document.getElementById('pv-ccpost').value = '';
+  // Reset submit button (it may be stuck on "✅ Submitted!" from a previous submission)
+  const sbtn = document.querySelector('#pv-form .btn-primary');
+  if (sbtn) { sbtn.textContent = 'Submit report'; sbtn.disabled = false; sbtn.style.background = ''; }
 }
 
 function resetPvLookup() {
