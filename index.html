@@ -682,16 +682,21 @@ window.addEventListener('load', () => {
 });
 
 function initAuth() {
+  // Mobile-friendly auth: don't auto-select (which can loop), and only use FedCM on desktop Chrome
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   google.accounts.id.initialize({
     client_id: OAUTH_CLIENT_ID,
     callback: onCredentialResponse,
-    auto_select: true,
-    use_fedcm_for_prompt: true,
+    auto_select: false,
+    use_fedcm_for_prompt: !isMobile,
+    itp_support: true, // helps Safari iOS (Intelligent Tracking Prevention)
   });
   google.accounts.id.renderButton(document.getElementById('g-signin-btn'), {
-    theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular'
+    theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular',
+    width: isMobile ? 280 : 300
   });
-  google.accounts.id.prompt();
+  // Skip the one-tap prompt on mobile (it's the source of most redirect loops)
+  if (!isMobile) google.accounts.id.prompt();
 
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: OAUTH_CLIENT_ID,
