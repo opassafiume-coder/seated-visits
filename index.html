@@ -881,10 +881,14 @@ async function loadRestaurantsFromSheet() {
         reimb: { Visa: Math.round(reimbVisa), Mastercard: Math.round(reimbMC), Amex: Math.round(reimbAmex) },
       });
     }
-    // Exclude restaurants from the active list (closed, temporarily paused, etc.)
-    // Add lowercase names to this array to hide them everywhere.
-    const EXCLUDED_RESTAURANTS = ['henry and the lion'];
-    RESTAURANTS = rows.filter(r => !EXCLUDED_RESTAURANTS.includes(String(r.name || '').toLowerCase().trim()));
+    // ⚠️ DO NOT REMOVE — restaurants permanently excluded from the active list
+    // (closed, temporarily paused, etc.). Add lowercase names to this array.
+    // Match is normalized: lowercase, "&"→"and", whitespace collapsed.
+    const EXCLUDED_RESTAURANTS = [
+      'henry and the lions',  // ID 16625 — permanently excluded per Olivia
+    ];
+    const normalizeName = n => String(n || '').toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ').trim();
+    RESTAURANTS = rows.filter(r => !EXCLUDED_RESTAURANTS.includes(normalizeName(r.name)));
   } catch(e) {
     console.error('Failed to load sheet:', e);
     RESTAURANTS = [];
@@ -1238,12 +1242,16 @@ async function loadSpots() {
   renderPhoneBrowse();
   renderPhoneAdmin();
   applyPhoneTabVisibility();
-  // Detect orphaned claims (restaurant dropped from Restaurants tab) and notify admin/claimants
+  // ⚠️ CRITICAL — DO NOT REMOVE
+  // Detects claims for restaurants that fell off the Restaurants tab and emails Olivia + claimant.
+  // Without this, employees can show up at restaurants we no longer have coverage for.
   detectOrphanedClaims(claimsMap);
 }
 
-// Detect claims for restaurants that are no longer in the Restaurants tab.
-// Notify admin and the claimant so they don't show up for a visit at a dropped restaurant.
+// ⚠️ CRITICAL FEATURE — DO NOT REMOVE OR REFACTOR WITHOUT CONFIRMING WITH OLIVIA
+// Detects claims for restaurants that are no longer in the Restaurants tab.
+// Notifies admin (Olivia) and the claimant so they don't show up for a visit at a dropped restaurant.
+// Dedupes via localStorage so one orphan triggers ONE round of emails, not one per refresh.
 async function detectOrphanedClaims(claimsMap) {
   const knownIds = new Set(RESTAURANTS.map(r => r.id));
   const orphans = [];
