@@ -1382,20 +1382,21 @@ async function detectOrphanedClaims(claimsMap) {
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
     const stampStr = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-    const summary = newOrphans.map(o => `• ${o.claimantName} (${o.claimantEmail}) — ${o.restaurantName} [${o.card}] (ID ${o.restaurantId})`).join('\n');
+    // Cram the list into the "address" field since EmailJS template renders that one but ignores card_reminder
+    const summaryLines = newOrphans.map(o => `• ${o.claimantName} (${o.claimantEmail}) — ${o.restaurantName} [${o.card}] (ID ${o.restaurantId})`);
     await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
       to_email: CONFIG.ADMIN_EMAIL,
       restaurant: `⚠️ ${newOrphans.length} OPEN claim(s) affected by sheet update`,
-      address: 'These restaurants were removed from the Restaurants tab but still have active OPEN claims (no PV report yet):',
-      market: '',
-      claimant_name: 'SYSTEM',
+      address: 'AFFECTED CLAIMS:\n' + summaryLines.join('\n') + '\n\n(These restaurants were removed from the Restaurants tab but still have active OPEN claims with no PV report submitted yet.)',
+      market: 'Reach out to each claimant directly and decide whether to reopen the spot.',
+      claimant_name: 'SYSTEM ALERT',
       claimant_email: CONFIG.ADMIN_EMAIL,
       relation: '',
       employee_email: '',
-      cards: newOrphans.length + ' affected claim(s)',
+      cards: newOrphans.length + ' affected',
       reimb: 'N/A',
       claim_time: stampStr,
-      card_reminder: summary,
+      card_reminder: summaryLines.join('\n'),
       deadline_note: 'Reach out to the claimants directly and decide whether to reopen the spot.'
     });
   } catch(e) { console.error('Orphan notification failed:', e); }
