@@ -1173,6 +1173,29 @@ function zoomMapToUserLocation() {
   );
 }
 
+// Click a restaurant card to zoom the map to that location
+function focusMapOnSpot(restaurantId) {
+  const s = spots.find(r => r.id === restaurantId);
+  if (!s) return;
+  // Default lat/lng (39.5, -98.35) means address wasn't geocoded — bail rather than zoom to Kansas
+  if (!s.lat || !s.lng || (s.lat === 39.5 && s.lng === -98.35)) {
+    alert('We don\'t have a precise location for this restaurant yet. Re-run the Apps Script "Process CSV" to geocode the address.');
+    return;
+  }
+  if (!map) initMap();
+  // Scroll the map into view, then zoom to the spot
+  document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  map.setView([s.lat, s.lng], 16);
+  // Briefly pop a marker tooltip
+  setTimeout(() => {
+    const marker = mapMarkers.find(m => {
+      const ll = m.getLatLng();
+      return ll.lat === s.lat && ll.lng === s.lng;
+    });
+    if (marker) marker.openTooltip();
+  }, 400);
+}
+
 // Haversine distance in miles between two lat/lng points
 function distanceMiles(lat1, lng1, lat2, lng2) {
   const R = 3958.8;
@@ -1594,10 +1617,10 @@ function renderBrowse() {
         </div>`;
       }).join('');
       const distBadge = (userLatLng && s._distMi != null) ? `<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:#EBF3FF;color:#1A4A8A;margin-left:6px;">${s._distMi.toFixed(1)} mi</span>` : '';
-      html += `<div class="card ${allTaken ? 'taken' : ''}" id="card-${s.id}">
+      html += `<div class="card ${allTaken ? 'taken' : ''}" id="card-${s.id}" style="cursor:pointer;" onclick="if(event.target.tagName!=='BUTTON') focusMapOnSpot(${s.id})">
         <div class="card-row">
           <div>
-            <div class="card-name">${s.name}${distBadge}</div>
+            <div class="card-name">${s.name}${distBadge} <span style="font-size:11px;color:var(--text-3);font-weight:400;">📍</span></div>
             <div class="card-addr">${s.addr}</div>
             <div class="card-meta"></div>
           </div>
@@ -1631,10 +1654,10 @@ function renderRestoCardHTML(s) {
     </div>`;
   }).join('');
   const distBadge = (userLatLng && s._distMi != null) ? `<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:#EBF3FF;color:#1A4A8A;margin-left:6px;">${s._distMi.toFixed(1)} mi</span>` : '';
-  return `<div class="card ${allTaken ? 'taken' : ''}" id="nearby-card-${s.id}">
+  return `<div class="card ${allTaken ? 'taken' : ''}" id="nearby-card-${s.id}" style="cursor:pointer;" onclick="if(event.target.tagName!=='BUTTON') focusMapOnSpot(${s.id})">
     <div class="card-row">
       <div>
-        <div class="card-name">${s.name}${distBadge}</div>
+        <div class="card-name">${s.name}${distBadge} <span style="font-size:11px;color:var(--text-3);font-weight:400;">📍</span></div>
         <div class="card-addr">${s.addr} · ${s.market}</div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">${cardButtons}</div>
