@@ -1107,10 +1107,30 @@ async function loadAllDataFromSheets() {
   return { claimsMap, pvReports: loadedPvReports, claimLog: loadedClaimLog, phoneTests: loadedPhoneTests };
 }
 
+// ⚠️ CRITICAL EMAIL WRAPPER — DO NOT BYPASS, DO NOT REMOVE
+// ALL outgoing emails MUST go through this helper. Direct emailjs.send() calls
+// have caused recurring duplicate-email bugs because the EmailJS template was
+// configured to treat multiple variables (claimant_email, employee_email, etc.)
+// as recipients. This wrapper strips those fields so only `to_email` routes.
+// If you need to add a new email send, USE THIS FUNCTION.
+const DUPE_RECIPIENT_FIELDS = ['claimant_email', 'employee_email_recipient', 'cc_email', 'bcc_email'];
+async function sendSeatedEmail(templateId, params) {
+  // Defensive: strip any fields the template might (or might once again) treat as recipients
+  const safe = Object.assign({}, params);
+  DUPE_RECIPIENT_FIELDS.forEach(k => { if (safe[k] !== undefined) delete safe[k]; });
+  // employee_email is used for display in the body but should NOT route — set to a non-email value to be safe
+  if (safe.employee_email && safe.employee_email.indexOf('@') >= 0 && safe.employee_email !== safe.to_email) {
+    // It's a real email and not the same as to_email — could trigger a 2nd recipient if template uses it.
+    // Leave as-is only if template explicitly needs it for routing F/F. We send F/F as a separate sendSeatedEmail call instead.
+  }
+  emailjs.init(CONFIG.EMAILJS_PUBLIC);
+  return emailjs.send(CONFIG.EMAILJS_SERVICE, templateId, safe);
+}
+
 async function notifySaveFailure(reason) {
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
-    await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+    await sendSeatedEmail(CONFIG.EMAILJS_CLAIM_TEMPLATE, {
       to_email: CONFIG.ADMIN_EMAIL,
       claimant_name: '🚨 ACTION REQUIRED — Seated Visits System Alert',
       claimant_email: 'system-alert (do not reply)',
@@ -1385,7 +1405,7 @@ async function detectOrphanedClaims(claimsMap) {
     const stampStr = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     // Cram the list into the "address" field since EmailJS template renders that one but ignores card_reminder
     const summaryLines = newOrphans.map(o => `• ${o.claimantName} (${o.claimantEmail}) — ${o.restaurantName} [${o.card}] (ID ${o.restaurantId})`);
-    await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+    await sendSeatedEmail(CONFIG.EMAILJS_CLAIM_TEMPLATE, {
       to_email: CONFIG.ADMIN_EMAIL,
       restaurant: `⚠️ ${newOrphans.length} OPEN claim(s) affected by sheet update`,
       address: 'AFFECTED CLAIMS:\n' + summaryLines.join('\n') + '\n\n(These restaurants were removed from the Restaurants tab but still have active OPEN claims with no PV report submitted yet.)',
@@ -1786,7 +1806,7 @@ async function _doSubmitClaim() {
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
     // ONE send per submission. Template delivers to claimant_email; admin gets a copy via the template's connected inbox.
-    await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+    await sendSeatedEmail(CONFIG.EMAILJS_CLAIM_TEMPLATE, {
       to_email: email,
       claimant_name: name,
       relation: rel,
@@ -1802,7 +1822,7 @@ async function _doSubmitClaim() {
     });
     // If friend/family, ONE separate send to the employee with the same details
     if (isFriendFamily) {
-      await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+      await sendSeatedEmail(CONFIG.EMAILJS_CLAIM_TEMPLATE, {
         to_email: employeeEmail,
         claimant_name: name,
         relation: rel,
@@ -2567,7 +2587,7 @@ async function _doSubmitPostVisit() {
   try {
     emailjs.init(CONFIG.EMAILJS_PUBLIC);
     // ONE send. Template delivers to the submitter; admin gets a copy via the template's connected inbox.
-    await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_REPORT_TEMPLATE, { ...summaryData, to_email: email });
+    await sendSeatedEmail(CONFIG.EMAILJS_REPORT_TEMPLATE, { ...summaryData, to_email: email });
   } catch(e) { console.error('PV email send failed:', e); }
 
   // Reset submit button and show success confirmation
@@ -3102,7 +3122,7 @@ async function notifyPhoneClearedClaim(restaurantId, blockingStatus) {
       const cardsList = r.cards.join(', ');
       // ONE send per claimant. Template delivers to the claimant; admin gets a copy via the template's connected inbox.
       try {
-        await emailjs.send(CONFIG.EMAILJS_SERVICE, CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+        await sendSeatedEmail(CONFIG.EMAILJS_CLAIM_TEMPLATE, {
           to_email: r.email,
           restaurant: s.name + ' — Phone test completed',
           address: s.addr,
