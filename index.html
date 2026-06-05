@@ -450,6 +450,10 @@
           <div class="stat-label" style="color:#1A4A8A;">ROI multiplier</div>
           <div class="stat-val" id="stat-roi" style="color:#1A4A8A;">—</div>
         </div>
+        <div class="stat-card" style="background:#FFF0EE;border-color:#E0A4A0;">
+          <div class="stat-label" style="color:#8C2418;">Lost reimb (MID was resolved)</div>
+          <div class="stat-val" id="stat-lost" style="color:#8C2418;">$0</div>
+        </div>
       </div>
     </div>
 
@@ -535,11 +539,12 @@
             <th>Venmo 3% fee</th>
             <th>Date Venmo'd</th>
             <th>Added to MID</th>
+            <th title="Mark when the MID was already resolved and the visit didn't actually move the needle — excludes this PV from Monthly Rev Captured">Lost?</th>
             <th></th>
           </tr>
         </thead>
         <tbody id="pv-admin-tbody">
-          <tr><td colspan="19" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
+          <tr><td colspan="20" style="text-align:center;padding:2rem;color:var(--text-3);">No post-visit reports yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -956,7 +961,7 @@ async function ensureDataTabs() {
     const existing = (meta.sheets || []).map(s => s.properties.title);
     const tabs = [
       { title: 'Claims',     headers: ['Restaurant ID','Restaurant Name','Address','City','Card','Status','Claimant Name','Claimant Email','Relation','Employee Email','Claimed At','Reimb','Rev Value'] },
-      { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received','Amount Venmod','Date Venmod','Venmo Fee','MID Export','Rev Value'] },
+      { title: 'PV Reports', headers: ['Submitted At','Name','Email','Relation','Employee Email','Restaurant','Card','Last 4','Amount Spent','Reimb','Venmo','Notes','Receipt URL','CC Screenshot URL','Visit Date','Status','Admin Notes','Receipt Received','Amount Venmod','Date Venmod','Venmo Fee','MID Export','Rev Value','Lost (MID Resolved)'] },
       { title: 'Phone Tests', headers: ['Restaurant Name','Admin ID','Card Network','Card ID','Amount','Trx Date','Status','Submitted to MID','Notes','Tester Email','Last Updated At','Last Contacted'] },
       { title: 'Claim Log',  headers: ['Logged At','Name','Email','Relation','Restaurant','Address','City','Card','Reimb','Restaurant ID'] },
     ];
@@ -1024,7 +1029,7 @@ async function loadAllDataFromSheets() {
   // ── PV Reports ──
   const loadedPvReports = [];
   try {
-    const vals = await fetchSheetValues('PV Reports!A:W');
+    const vals = await fetchSheetValues('PV Reports!A:X');
     if (vals.length > 1) {
       const h = vals[0]; const idx = k => h.indexOf(k);
       vals.slice(1).forEach((row, i) => {
@@ -1053,6 +1058,7 @@ async function loadAllDataFromSheets() {
           venmoFee:       row[idx('Venmo Fee')] || '',
           midExported:    row[idx('MID Export')] === 'TRUE' || row[idx('MID Export')] === true,
           revValue:       row[idx('Rev Value')] !== '' && row[idx('Rev Value')] != null ? parseFloat(row[idx('Rev Value')]) : null,
+          lost:           row[idx('Lost (MID Resolved)')] === 'TRUE' || row[idx('Lost (MID Resolved)')] === true,
           _sheetRow:      i + 2,
         });
       });
@@ -1553,7 +1559,7 @@ function renderPvReports() {
   );
   const sorted = pvAdminSortAsc ? filtered.slice() : filtered.slice().reverse();
   if (!sorted.length) {
-    tbody.innerHTML = `<tr><td colspan="19" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2rem;color:var(--text-3);">${nameFilter ? 'No reports match that name' : 'No post-visit reports yet'}</td></tr>`;
     return;
   }
   tbody.innerHTML = sorted.map(r => {
@@ -1603,6 +1609,7 @@ function renderPvReports() {
     <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${r.venmoFee ? '$' + r.venmoFee : (r.amountVenmood ? '$' + (parseFloat(r.amountVenmood) * 0.03).toFixed(2) : '—')}</td>
     <td><input type="date" value="${r.dateVenmood||''}" onchange="updatePvDateVenmood(${idx}, this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);width:130px;" /></td>
     <td style="text-align:center;"><input type="checkbox" ${r.midExported ? 'checked' : ''} onchange="updatePvMidExported(${idx}, this.checked)" title="Mark as added to MID sheet" style="width:16px;height:16px;cursor:pointer;accent-color:#1A5C36;" /></td>
+    <td style="text-align:center;background:${r.lost ? '#FFF0EE' : 'transparent'};"><input type="checkbox" ${r.lost ? 'checked' : ''} onchange="updatePvLost(${idx}, this.checked)" title="Visit didn't move the needle — MID was already resolved. Excludes from Monthly Rev Captured." style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626;" /></td>
     <td><button onclick="deletePvReport(${idx})" style="font-size:12px;padding:4px 8px;border:1px solid #fca5a5;border-radius:6px;background:#fef2f2;color:#dc2626;cursor:pointer;">🗑</button></td>
   </tr>`;
   }).join('');
@@ -2123,7 +2130,7 @@ async function backfillRevAndPushPadma(btn) {
   btn.textContent = 'Working…';
   let updated = 0, pushed = 0, skipped = 0;
   try {
-    const vals = await fetchSheetValues('PV Reports!A:W');
+    const vals = await fetchSheetValues('PV Reports!A:X');
     const h = vals[0] || [];
     const restIdx = h.indexOf('Restaurant');
     const cardIdx = h.indexOf('Card');
@@ -2231,7 +2238,7 @@ async function dedupePvReports(btn) {
   const origText = btn.textContent;
   btn.textContent = 'Scanning…';
   try {
-    const vals = await fetchSheetValues('PV Reports!A:W');
+    const vals = await fetchSheetValues('PV Reports!A:X');
     if (vals.length < 2) { alert('No data to dedupe.'); return; }
     const h = vals[0];
     const submIdx = h.indexOf('Submitted At');
@@ -2405,9 +2412,18 @@ function updateStats() {
   });
   let revCaptured = 0;
   let reimbPaid = 0;
+  let lostReimb = 0;
+  let lostCount = 0;
   const unmatched = [];
   const norm = s => String(s || '').toLowerCase().trim();
   validReports.forEach(r => {
+    if (r.lost) {
+      // Track losses separately — don't count toward captured rev or visits completed
+      const amt = parseFloat(r.amountVenmood);
+      if (!isNaN(amt)) lostReimb += amt;
+      lostCount++;
+      return;
+    }
     // Prefer the rev value locked in at PV submit time
     if (r.revValue != null && !isNaN(Number(r.revValue))) {
       revCaptured += Number(r.revValue);
@@ -2429,10 +2445,13 @@ function updateStats() {
   const revEl    = document.getElementById('stat-revenue');
   const reimbEl  = document.getElementById('stat-reimb');
   const roiEl    = document.getElementById('stat-roi');
-  if (visitsEl) visitsEl.textContent = validReports.length;
+  const lostEl   = document.getElementById('stat-lost');
+  const nonLostCount = validReports.length - lostCount;
+  if (visitsEl) visitsEl.textContent = nonLostCount;
   if (revEl)    revEl.textContent    = fmt(revCaptured);
   if (reimbEl)  reimbEl.textContent  = fmt(reimbPaid);
   if (roiEl)    roiEl.textContent    = reimbPaid > 0 ? (revCaptured / reimbPaid).toFixed(1) + 'x' : '—';
+  if (lostEl)   lostEl.textContent   = fmt(lostReimb) + (lostCount ? ` (${lostCount})` : '');
 }
 
 function populateMarketFilter() {
@@ -2833,6 +2852,15 @@ async function updatePvMidExported(idx, checked) {
   pvReports[idx].midExported = checked;
   const row = pvReports[idx]._sheetRow;
   if (row) { try { await updateSheetCell(`PV Reports!V${row}`, checked ? 'TRUE' : ''); } catch(e) { console.error(e); } }
+}
+
+async function updatePvLost(idx, checked) {
+  pvReports[idx].lost = checked;
+  const row = pvReports[idx]._sheetRow;
+  if (row) { try { await updateSheetCell(`PV Reports!X${row}`, checked ? 'TRUE' : ''); } catch(e) { console.error(e); } }
+  // Refresh impact stats since "lost" affects them
+  updateStats();
+  renderPvReports();
 }
 
 async function midFetch(url, options = {}) {
