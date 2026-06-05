@@ -894,6 +894,7 @@ async function loadRestaurantsFromSheet() {
     // Match is normalized: lowercase, "&"→"and", whitespace collapsed.
     const EXCLUDED_RESTAURANTS = [
       'henry and the lions',  // ID 16625 — permanently excluded per Olivia
+      'pastrami queen',       // closed — permanently excluded per Olivia
     ];
     const normalizeName = n => String(n || '').toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ').trim();
     RESTAURANTS = rows.filter(r => !EXCLUDED_RESTAURANTS.includes(normalizeName(r.name)));
