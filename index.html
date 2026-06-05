@@ -410,6 +410,7 @@
         <button onclick="restoreHistoricalClaims()" style="font-size:12px;padding:6px 14px;border:1px solid #d97706;border-radius:8px;background:#fffbeb;color:#92400e;cursor:pointer;font-weight:600;white-space:nowrap;">🔄 Restore Historical Claims</button>
         <button onclick="restoreHistoricalPvReports()" style="font-size:12px;padding:6px 14px;border:1px solid #d97706;border-radius:8px;background:#fffbeb;color:#92400e;cursor:pointer;font-weight:600;white-space:nowrap;">🔄 Restore Historical PV Reports</button>
         <button onclick="backfillRevAndPushPadma(this)" style="font-size:12px;padding:6px 14px;border:1px solid #1A5C36;border-radius:8px;background:#EDFAF3;color:#1A5C36;cursor:pointer;font-weight:600;white-space:nowrap;">💰 Backfill Rev + Push Padma PVs</button>
+        <button onclick="backfillClaimEmails(this)" style="font-size:12px;padding:6px 14px;border:1px solid #1A4A8A;border-radius:8px;background:#EBF3FF;color:#1A4A8A;cursor:pointer;font-weight:600;white-space:nowrap;">📧 Backfill Claim Emails</button>
         <button onclick="dedupePvReports(this)" style="font-size:12px;padding:6px 14px;border:1px solid #b91c1c;border-radius:8px;background:#fef2f2;color:#b91c1c;cursor:pointer;font-weight:600;white-space:nowrap;">🧹 Remove PV Duplicates</button>
         <button onclick="dedupePhoneTests(this)" style="font-size:12px;padding:6px 14px;border:1px solid #b91c1c;border-radius:8px;background:#fef2f2;color:#b91c1c;cursor:pointer;font-weight:600;white-space:nowrap;">🧹 Remove Phone Test Duplicates</button>
       </div>
@@ -1973,6 +1974,79 @@ const PADMA_PV_REPORTS_TO_PUSH = [
   ['2026-05-29T18:27:16Z', 'Padma Rao', 'prao@seatedapp.io', 'Employee', '', 'TWIST by Milk & Hops',  'Visa',       '1821', '16.32', 41, 'padmarao', 'Backfilled by Olivia', '', '', '2026-05-29', 'New', 'Backfilled — receipt/CC docs pending', 'FALSE', '', '', '', '', 234],
   ['2026-05-29T18:27:43Z', 'Padma Rao', 'prao@seatedapp.io', 'Employee', '', 'TWIST by Milk & Hops',  'Mastercard', '8853', '15.68', 21, 'padmarao', 'Backfilled by Olivia', '', '', '2026-05-29', 'New', 'Backfilled — receipt/CC docs pending', 'FALSE', '', '', '', '', 106],
 ];
+
+// Send claim confirmation emails for claims in a given date range — used to recover from email-send outages
+async function backfillClaimEmails(btn) {
+  const from = prompt('Send claim emails for claims claimed AFTER this date/time (YYYY-MM-DDTHH:MM in UTC, e.g. 2026-06-04T17:14):');
+  if (!from) return;
+  const to = prompt('AND BEFORE this date/time (leave blank for "no end"):') || '';
+  const fromTs = new Date(from).getTime();
+  const toTs = to ? new Date(to).getTime() : Date.now() + 1e12;
+  if (isNaN(fromTs)) { alert('Invalid from date.'); return; }
+
+  // Pull fresh Claims tab data
+  let claimsRows;
+  try {
+    claimsRows = await fetchSheetValues('Claims!A:M');
+  } catch(e) { alert('Failed to read Claims tab: ' + e.message); return; }
+  if (claimsRows.length < 2) { alert('No claims to process.'); return; }
+  const h = claimsRows[0];
+  const idx = k => h.indexOf(k);
+  const targets = [];
+  for (let i = 1; i < claimsRows.length; i++) {
+    const row = claimsRows[i];
+    if (!row[idx('Restaurant ID')]) continue;
+    const claimedAt = row[idx('Claimed At')];
+    const ts = new Date(claimedAt || 0).getTime();
+    if (isNaN(ts) || ts < fromTs || ts > toTs) continue;
+    if ((row[idx('Status')] || '') !== 'Claimed') continue; // only active claims
+    targets.push({
+      restaurantId: row[idx('Restaurant ID')],
+      name: row[idx('Restaurant Name')],
+      addr: row[idx('Address')],
+      market: row[idx('City')],
+      card: row[idx('Card')],
+      claimantName: row[idx('Claimant Name')],
+      claimantEmail: row[idx('Claimant Email')],
+      rel: row[idx('Relation')],
+      employeeEmail: row[idx('Employee Email')],
+      claimedAt,
+      reimb: row[idx('Reimb')],
+    });
+  }
+  if (targets.length === 0) { alert('No claims found in that window.'); return; }
+  if (!confirm(`Found ${targets.length} claim(s) in that window. Send confirmation emails to each claimant now?`)) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  let sent = 0, failed = 0;
+  for (const t of targets) {
+    try {
+      const claimTimeStr = new Date(t.claimedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      await sendSeatedEmail(CONFIG.EMAILJS_CLAIM_TEMPLATE, {
+        to_email: t.claimantEmail,
+        claimant_name: t.claimantName,
+        relation: t.rel || '',
+        employee_email: t.employeeEmail || 'N/A',
+        restaurant: t.name,
+        address: t.addr,
+        market: t.market,
+        cards: t.card,
+        reimb: t.reimb ? `$${t.reimb}` : 'TBD',
+        claim_time: claimTimeStr,
+        card_reminder: `Before heading to ${t.name}, make sure your ${t.card} card is already linked in the Seated app. (Backfilled — original email may not have sent due to an outage.)`,
+        deadline_note: `You have 48 hours from your original claim time to complete your visit.`,
+      });
+      sent++;
+    } catch(e) {
+      console.error('Backfill email failed:', t.claimantEmail, t.name, e);
+      failed++;
+    }
+  }
+  alert(`✅ Backfill done!\n• Sent: ${sent}\n• Failed: ${failed}`);
+  btn.disabled = false;
+  btn.textContent = '📧 Backfill Claim Emails';
+}
 
 async function backfillRevAndPushPadma(btn) {
   if (!confirm('This will:\n1. Backfill Rev Value (col W) on 13 historical PV reports\n2. Push 2 new PV reports for Padma (Death Ave + Taqueria On Tenth) if not already there\n\nSafe to re-click — duplicates skipped.\n\nProceed?')) return;
