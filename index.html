@@ -463,7 +463,8 @@
           <option selected>Claimed</option>
           <option>Confirmed</option>
           <option>Closed</option>
-          <option value="__removed">⚠️ Restaurant removed</option>
+          <option value="__removed_lost">⚠️ Removed — needs review (potential lost $)</option>
+          <option value="__removed_resolved">✓ Removed — MID resolved via phone</option>
         </select>
         <input id="admin-name-filter" type="text" placeholder="Filter by name…" oninput="renderAdmin()"
           style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:160px;">
@@ -1902,19 +1903,31 @@ function renderAdmin() {
   const mFilter    = document.getElementById('filter-market').value;
   const sFilter    = document.getElementById('filter-status').value;
   const nameFilter = (document.getElementById('admin-name-filter')?.value || '').toLowerCase().trim();
+  // Pre-compute which restaurantIds had a "Trx Submitted: DONE!" phone test (MID resolved via phone)
+  const phoneResolvedIds = new Set(
+    (phoneTests || [])
+      .filter(t => t.status === 'Trx Submitted: DONE!')
+      .map(t => t.restaurantId)
+  );
+
   const rows = [];
   spots.forEach(s => {
-    // Use all keys in cardSlots (not just s.cards) so preserved claims on dropped cards still show
     Object.keys(s.cardSlots).forEach(card => {
       const slot = s.cardSlots[card];
-      // Phone-blocked slots belong to the Phone Tests admin section, not regular Claims
       if (slot.phoneBlocked) return;
       const c = slot.claimant;
       const nameMatch = !nameFilter || (c && (c.name || '').toLowerCase().includes(nameFilter));
       const isRemoved = s._orphan || slot._restaurantRemoved;
-      // Special filter: only show removed-restaurant claims
-      if (sFilter === '__removed') {
-        if (!isRemoved) return;
+      const isPhoneResolved = phoneResolvedIds.has(s.id);
+
+      // Special filters
+      if (sFilter === '__removed_lost') {
+        if (!isRemoved || isPhoneResolved) return;
+        if ((!mFilter || s.market === mFilter) && nameMatch) rows.push({ s, card, slot });
+        return;
+      }
+      if (sFilter === '__removed_resolved') {
+        if (!isRemoved || !isPhoneResolved) return;
         if ((!mFilter || s.market === mFilter) && nameMatch) rows.push({ s, card, slot });
         return;
       }
@@ -1923,8 +1936,8 @@ function renderAdmin() {
       }
     });
   });
-  // If filtering for removed restaurants, also show a "lost $$$" tally at the top of the table
-  const removedTally = (sFilter === '__removed')
+  // Lost-$ tally only on the "needs review" filter, not the phone-resolved one
+  const removedTally = (sFilter === '__removed_lost')
     ? rows.reduce((sum, r) => {
         const reimb = r.slot.claimant?.reimb;
         return sum + (reimb != null ? Number(reimb) || 0 : 0);
