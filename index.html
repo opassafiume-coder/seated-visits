@@ -1329,6 +1329,39 @@ async function loadSpots() {
     return { ...r, cardSlots };
   });
 
+  // Phantom spots: claims for restaurants no longer in the Restaurants tab.
+  // These stay in the admin view (marked with a badge) until Olivia manually closes them.
+  const knownIds = new Set(RESTAURANTS.map(r => r.id));
+  Object.entries(claimsMap).forEach(([rid, byCard]) => {
+    const idNum = parseInt(rid);
+    if (knownIds.has(idNum)) return;
+    const firstClaim = Object.values(byCard)[0];
+    if (!firstClaim || !firstClaim.claimant) return;
+    const cardSlots = {};
+    const cardsArr = [];
+    Object.entries(byCard).forEach(([card, slot]) => {
+      // Mark the slot so admin UI can show "restaurant removed" badge
+      slot._restaurantRemoved = true;
+      cardSlots[card] = slot;
+      cardsArr.push(card);
+    });
+    spots.push({
+      id: idNum,
+      name: firstClaim.claimant.restaurantName || '(unknown — removed from Restaurants tab)',
+      addr: firstClaim.claimant.restaurantAddr || '',
+      market: firstClaim.claimant.restaurantMarket || '',
+      cards: cardsArr,
+      priority: 'Normal',
+      gmv: 0,
+      lat: 39.5,
+      lng: -98.35,
+      rev: { Visa: 0, Mastercard: 0, Amex: 0 },
+      reimb: { Visa: 0, Mastercard: 0, Amex: 0 },
+      cardSlots,
+      _orphan: true,
+    });
+  });
+
   renderBrowse();
   renderMap();
   renderAdmin();
@@ -1895,8 +1928,9 @@ function renderAdmin() {
   rows.forEach(({ s, card, slot }) => {
     const c = slot.claimant;
     const claimedDate = c && c.claimedAt ? new Date(c.claimedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-    html += `<tr>
-      <td><div style="font-weight:500;font-size:13px;">${s.name}</div><div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;margin-top:2px;">${s.addr}</div></td>
+    const removedBadge = (s._orphan || slot._restaurantRemoved) ? `<div style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF0EE;color:#8C2418;margin-top:4px;font-family:'DM Mono',monospace;letter-spacing:0.04em;">⚠️ RESTAURANT REMOVED</div>` : '';
+    html += `<tr${(s._orphan || slot._restaurantRemoved) ? ' style="background:#FFFBF7;"' : ''}>
+      <td><div style="font-weight:500;font-size:13px;">${s.name}</div><div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;margin-top:2px;">${s.addr}</div>${removedBadge}</td>
       <td style="color:var(--text-2);">${s.market}</td>
       <td>${cardBadge(card)}</td>
       <td>${statusBadge(slot.status)}</td>
