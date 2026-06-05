@@ -1575,10 +1575,11 @@ function renderPvReports() {
       updateSheetCell(`PV Reports!J${r._sheetRow}`, String(lockedReimb));
       r.reimb = lockedReimb;
     }
-    // Mark this row if the restaurant is no longer in the active Restaurants list (orphan PV)
-    const restaurantRemoved = !matchedSpot || matchedSpot._orphan;
-    const removedBadge = restaurantRemoved ? `<div style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF0EE;color:#8C2418;margin-top:4px;font-family:'DM Mono',monospace;letter-spacing:0.04em;">⚠️ RESTAURANT REMOVED</div>` : '';
-    return `<tr style="${r.midExported ? 'opacity:0.45;background:#f0faf4;' : (restaurantRemoved ? 'background:#FFFBF7;' : '')}">
+    // Only tag PV reports that are flagged Lost (= the visit was wasted because the restaurant
+    // no longer needed it). Successful visits that caused the restaurant to drop off the list
+    // don't get the tag — those count toward captured rev.
+    const removedBadge = r.lost ? `<div style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF0EE;color:#8C2418;margin-top:4px;font-family:'DM Mono',monospace;letter-spacing:0.04em;">⚠️ RESTAURANT REMOVED</div>` : '';
+    return `<tr style="${r.midExported ? 'opacity:0.45;background:#f0faf4;' : (r.lost ? 'background:#FFFBF7;' : '')}">
     <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${r.visitDate || r.submittedAt}</td>
     <td><div style="font-weight:500;font-size:13px;">${r.name}</div><div style="font-size:11px;color:var(--text-3);">${r.email}</div></td>
     <td style="font-size:13px;"><div>${r.restaurant}</div>${removedBadge}</td>
