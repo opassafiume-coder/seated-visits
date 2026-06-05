@@ -1113,21 +1113,17 @@ async function loadAllDataFromSheets() {
 }
 
 // ⚠️ CRITICAL EMAIL WRAPPER — DO NOT BYPASS, DO NOT REMOVE
-// ALL outgoing emails MUST go through this helper. Direct emailjs.send() calls
-// have caused recurring duplicate-email bugs because the EmailJS template was
-// configured to treat multiple variables (claimant_email, employee_email, etc.)
-// as recipients. This wrapper strips those fields so only `to_email` routes.
-// If you need to add a new email send, USE THIS FUNCTION.
-const DUPE_RECIPIENT_FIELDS = ['claimant_email', 'employee_email_recipient', 'cc_email', 'bcc_email'];
+// ALL outgoing emails MUST go through this helper.
+// IMPORTANT: The EmailJS template's "To Email" field uses {{claimant_email}}
+// as the recipient. So we MUST always set claimant_email = to_email below.
+// Stripping claimant_email broke emails entirely (they went to no one).
+// To prevent duplicates the user needs to edit the EmailJS template so that
+// "To Email" is `{{to_email}}` only, OR ensure no other field (cc, bcc) also
+// resolves to the same address.
 async function sendSeatedEmail(templateId, params) {
-  // Defensive: strip any fields the template might (or might once again) treat as recipients
   const safe = Object.assign({}, params);
-  DUPE_RECIPIENT_FIELDS.forEach(k => { if (safe[k] !== undefined) delete safe[k]; });
-  // employee_email is used for display in the body but should NOT route — set to a non-email value to be safe
-  if (safe.employee_email && safe.employee_email.indexOf('@') >= 0 && safe.employee_email !== safe.to_email) {
-    // It's a real email and not the same as to_email — could trigger a 2nd recipient if template uses it.
-    // Leave as-is only if template explicitly needs it for routing F/F. We send F/F as a separate sendSeatedEmail call instead.
-  }
+  // Always mirror to_email into claimant_email so the template's routing field is populated
+  if (safe.to_email && !safe.claimant_email) safe.claimant_email = safe.to_email;
   emailjs.init(CONFIG.EMAILJS_PUBLIC);
   return emailjs.send(CONFIG.EMAILJS_SERVICE, templateId, safe);
 }
