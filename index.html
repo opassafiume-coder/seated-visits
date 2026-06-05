@@ -1329,6 +1329,38 @@ async function loadSpots() {
     return { ...r, cardSlots };
   });
 
+  // Add "phantom" spots for restaurants that are in the Claims sheet but NOT in RESTAURANTS.
+  // These claims still need to be visible in the admin tab so Olivia can manage them.
+  const knownIds = new Set(RESTAURANTS.map(r => r.id));
+  Object.entries(claimsMap).forEach(([rid, byCard]) => {
+    const idNum = parseInt(rid);
+    if (knownIds.has(idNum)) return; // already in spots
+    // Use the first claim's preserved restaurant info
+    const firstClaim = Object.values(byCard)[0];
+    if (!firstClaim || !firstClaim.claimant) return;
+    const cardSlots = {};
+    const cardsArr = [];
+    Object.entries(byCard).forEach(([card, slot]) => {
+      cardSlots[card] = slot;
+      cardsArr.push(card);
+    });
+    spots.push({
+      id: idNum,
+      name: firstClaim.claimant.restaurantName || '(unknown — dropped from Restaurants tab)',
+      addr: firstClaim.claimant.restaurantAddr || '',
+      market: firstClaim.claimant.restaurantMarket || '',
+      cards: cardsArr,
+      priority: 'Normal',
+      gmv: 0,
+      lat: 39.5,
+      lng: -98.35,
+      rev: { Visa: 0, Mastercard: 0, Amex: 0 },
+      reimb: { Visa: 0, Mastercard: 0, Amex: 0 },
+      cardSlots,
+      _orphan: true, // flag so we can style or filter these in the UI
+    });
+  });
+
   renderBrowse();
   renderMap();
   renderAdmin();
