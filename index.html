@@ -317,7 +317,7 @@
           </div>
           <div class="form-actions">
             <button class="btn-primary" onclick="submitPostVisit()">Submit report</button>
-            <button class="btn-ghost" onclick="resetPvLookup()">← Start over</button>
+            <button class="btn-ghost" onclick="resetPvLookup()">📝 Submit another report</button>
           </div>
           <div id="pv-success" style="display:none;" class="success-banner">Report submitted! A summary has been sent to your email and to Olivia. Questions? <strong>(502) 296-9770</strong> · <a href="mailto:opassafiume@seatedapp.io" style="color:inherit;">opassafiume@seatedapp.io</a></div>
           <div id="pv-error" style="display:none;background:#FFF0EE;color:#8C2418;border-radius:6px;padding:12px 16px;font-size:13px;font-weight:500;margin-top:12px;">Please fill out all required fields.</div>
@@ -2531,21 +2531,38 @@ function lookupClaims() {
   document.getElementById('pv-pick').style.display = 'block';
   document.getElementById('pv-greeter').textContent = matches[0].claimant.name.split(' ')[0] + '!';
 
+  // Store matches globally for selection
+  window._pvMatches = matches;
+  renderPvClaimsList();
+}
+
+// Render the pick list, greying out claims that already have a PV report submitted
+function renderPvClaimsList() {
   const list = document.getElementById('pv-claims-list');
-  list.innerHTML = matches.map((m, i) => `
-    <div onclick="selectPvClaim(${i})" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#1A1814'" onmouseout="this.style.borderColor='var(--border)'">
+  const matches = window._pvMatches || [];
+  list.innerHTML = matches.map((m, i) => {
+    const alreadySubmitted = pvReports.some(r =>
+      (r.restaurant || '').toLowerCase() === (m.spot.name || '').toLowerCase() &&
+      r.card === m.card
+    );
+    const greyStyle = alreadySubmitted
+      ? 'opacity:0.55;background:#F2F1EE;cursor:default;'
+      : 'background:var(--surface);cursor:pointer;';
+    const hoverHandlers = alreadySubmitted ? '' : `onclick="selectPvClaim(${i})" onmouseover="this.style.borderColor='#1A1814'" onmouseout="this.style.borderColor='var(--border)'"`;
+    const submittedBadge = alreadySubmitted
+      ? `<div style="font-size:10px;font-weight:600;color:#1A5C36;background:#EDFAF3;padding:2px 8px;border-radius:10px;display:inline-block;margin-top:6px;font-family:'DM Mono',monospace;letter-spacing:0.04em;">✓ REPORT SUBMITTED</div>`
+      : '';
+    return `<div ${hoverHandlers} style="${greyStyle}border:1px solid var(--border);border-radius:8px;padding:12px 16px;transition:border-color 0.15s;">
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div>
           <div style="font-size:14px;font-weight:500;">${m.spot.name}</div>
           <div style="font-size:12px;color:var(--text-2);margin-top:2px;">${m.spot.addr}</div>
+          ${submittedBadge}
         </div>
         ${cardBadge(m.card)}
       </div>
-    </div>
-  `).join('');
-
-  // Store matches globally for selection
-  window._pvMatches = matches;
+    </div>`;
+  }).join('');
 }
 
 function selectPvClaim(i) {
@@ -2572,6 +2589,16 @@ function selectPvClaim(i) {
 
 function resetPvLookup() {
   pvSelectedClaim = null;
+  // If we still have matches loaded, go back to the pick list (skip the email entry step)
+  // and re-render so the just-submitted claim shows as ✓ REPORT SUBMITTED.
+  if (window._pvMatches && window._pvMatches.length > 0) {
+    document.getElementById('pv-form').style.display = 'none';
+    document.getElementById('pv-pick').style.display = 'block';
+    document.getElementById('pv-lookup').style.display = 'none';
+    renderPvClaimsList();
+    return;
+  }
+  // No matches loaded — go back to email entry.
   window._pvMatches = [];
   document.getElementById('pv-lookup').style.display = 'block';
   document.getElementById('pv-pick').style.display = 'none';
