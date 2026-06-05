@@ -2404,24 +2404,26 @@ function updateStats() {
     return ts >= fromTs && ts <= toTs;
   });
   let revCaptured = 0;
-  let reimbPaid = 0;
-  let lostReimb = 0;
+  let reimbPaid = 0;       // includes Lost — we still pay it out, so it counts in the denominator
+  let lostReimb = 0;       // tracked separately for visibility
   let lostCount = 0;
   const unmatched = [];
   const norm = s => String(s || '').toLowerCase().trim();
   validReports.forEach(r => {
+    const amt = parseFloat(r.amountVenmood);
+    const amtSafe = !isNaN(amt) ? amt : 0;
+
     if (r.lost) {
-      // Track losses separately — don't count toward captured rev or visits completed
-      const amt = parseFloat(r.amountVenmood);
-      if (!isNaN(amt)) lostReimb += amt;
+      // Lost visit: reimb still paid, but no rev captured. Hurts ROI as it should.
+      lostReimb += amtSafe;
+      reimbPaid += amtSafe;
       lostCount++;
       return;
     }
-    // Prefer the rev value locked in at PV submit time
+    // Successful visit: count rev captured + reimb paid
     if (r.revValue != null && !isNaN(Number(r.revValue))) {
       revCaptured += Number(r.revValue);
     } else {
-      // Fallback: look up from current Restaurants tab
       const spot = spots.find(s => norm(s.name) === norm(r.restaurant));
       if (spot && spot.rev && spot.rev[r.card] != null) {
         revCaptured += Number(spot.rev[r.card]) || 0;
@@ -2429,8 +2431,7 @@ function updateStats() {
         unmatched.push(`${r.restaurant} (${r.card})`);
       }
     }
-    const amt = parseFloat(r.amountVenmood);
-    if (!isNaN(amt)) reimbPaid += amt;
+    reimbPaid += amtSafe;
   });
   if (unmatched.length > 0) console.warn(`Impact stats: ${unmatched.length}/${validReports.length} PV reports couldn't be matched to a restaurant in the current Restaurants tab:`, unmatched);
   const fmt = n => '$' + Math.round(n).toLocaleString();
