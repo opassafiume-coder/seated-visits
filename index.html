@@ -467,8 +467,7 @@
           <option selected>Claimed</option>
           <option>Confirmed</option>
           <option>Closed</option>
-          <option value="__removed_lost">⚠️ Removed — needs review (potential lost $)</option>
-          <option value="__removed_resolved">✓ Removed — MID resolved via phone</option>
+          <option value="__removed_no_pv">⚠️ Removed (no PV submitted — needs review)</option>
         </select>
         <input id="admin-name-filter" type="text" placeholder="Filter by name…" oninput="renderAdmin()"
           style="font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);outline:none;width:160px;">
@@ -1576,10 +1575,13 @@ function renderPvReports() {
       updateSheetCell(`PV Reports!J${r._sheetRow}`, String(lockedReimb));
       r.reimb = lockedReimb;
     }
-    return `<tr style="${r.midExported ? 'opacity:0.45;background:#f0faf4;' : ''}">
+    // Mark this row if the restaurant is no longer in the active Restaurants list (orphan PV)
+    const restaurantRemoved = !matchedSpot || matchedSpot._orphan;
+    const removedBadge = restaurantRemoved ? `<div style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF0EE;color:#8C2418;margin-top:4px;font-family:'DM Mono',monospace;letter-spacing:0.04em;">⚠️ RESTAURANT REMOVED</div>` : '';
+    return `<tr style="${r.midExported ? 'opacity:0.45;background:#f0faf4;' : (restaurantRemoved ? 'background:#FFFBF7;' : '')}">
     <td style="font-size:12px;color:var(--text-2);font-family:'DM Mono',monospace;">${r.visitDate || r.submittedAt}</td>
     <td><div style="font-weight:500;font-size:13px;">${r.name}</div><div style="font-size:11px;color:var(--text-3);">${r.email}</div></td>
-    <td style="font-size:13px;">${r.restaurant}</td>
+    <td style="font-size:13px;"><div>${r.restaurant}</div>${removedBadge}</td>
     <td>${cardBadge(r.card)}</td>
     <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);">${r.last4 || '—'}</td>
     <td style="font-size:13px;font-family:'DM Mono',monospace;">$${parseFloat(r.amount).toFixed(2)}</td>
@@ -1910,13 +1912,6 @@ function renderAdmin() {
   const mFilter    = document.getElementById('filter-market').value;
   const sFilter    = document.getElementById('filter-status').value;
   const nameFilter = (document.getElementById('admin-name-filter')?.value || '').toLowerCase().trim();
-  // Pre-compute which restaurantIds had a "Trx Submitted: DONE!" phone test (MID resolved via phone)
-  const phoneResolvedIds = new Set(
-    (phoneTests || [])
-      .filter(t => t.status === 'Trx Submitted: DONE!')
-      .map(t => t.restaurantId)
-  );
-
   const rows = [];
   spots.forEach(s => {
     Object.keys(s.cardSlots).forEach(card => {
@@ -1925,16 +1920,11 @@ function renderAdmin() {
       const c = slot.claimant;
       const nameMatch = !nameFilter || (c && (c.name || '').toLowerCase().includes(nameFilter));
       const isRemoved = s._orphan || slot._restaurantRemoved;
-      const isPhoneResolved = phoneResolvedIds.has(s.id);
+      const hasPv = pvReports.some(r => r.restaurant === s.name && r.card === card);
 
-      // Special filters
-      if (sFilter === '__removed_lost') {
-        if (!isRemoved || isPhoneResolved) return;
-        if ((!mFilter || s.market === mFilter) && nameMatch) rows.push({ s, card, slot });
-        return;
-      }
-      if (sFilter === '__removed_resolved') {
-        if (!isRemoved || !isPhoneResolved) return;
+      // Special filter: removed-restaurant claims with no PV submitted yet
+      if (sFilter === '__removed_no_pv') {
+        if (!isRemoved || hasPv) return;
         if ((!mFilter || s.market === mFilter) && nameMatch) rows.push({ s, card, slot });
         return;
       }
@@ -1943,8 +1933,8 @@ function renderAdmin() {
       }
     });
   });
-  // Lost-$ tally only on the "needs review" filter, not the phone-resolved one
-  const removedTally = (sFilter === '__removed_lost')
+  // Potential-lost $ tally when filter is active
+  const removedTally = (sFilter === '__removed_no_pv')
     ? rows.reduce((sum, r) => {
         const reimb = r.slot.claimant?.reimb;
         return sum + (reimb != null ? Number(reimb) || 0 : 0);
@@ -1969,8 +1959,10 @@ function renderAdmin() {
   rows.forEach(({ s, card, slot }) => {
     const c = slot.claimant;
     const claimedDate = c && c.claimedAt ? new Date(c.claimedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-    const removedBadge = (s._orphan || slot._restaurantRemoved) ? `<div style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF0EE;color:#8C2418;margin-top:4px;font-family:'DM Mono',monospace;letter-spacing:0.04em;">⚠️ RESTAURANT REMOVED</div>` : '';
-    html += `<tr${(s._orphan || slot._restaurantRemoved) ? ' style="background:#FFFBF7;"' : ''}>
+    // Only flag "RESTAURANT REMOVED" when there's no PV report for this claim — once the visit happened we don't care anymore
+    const hasPvReport = pvReports.some(r => r.restaurant === s.name && r.card === card);
+    const removedBadge = ((s._orphan || slot._restaurantRemoved) && !hasPvReport) ? `<div style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF0EE;color:#8C2418;margin-top:4px;font-family:'DM Mono',monospace;letter-spacing:0.04em;">⚠️ RESTAURANT REMOVED</div>` : '';
+    html += `<tr${((s._orphan || slot._restaurantRemoved) && !hasPvReport) ? ' style="background:#FFFBF7;"' : ''}>
       <td><div style="font-weight:500;font-size:13px;">${s.name}</div><div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;margin-top:2px;">${s.addr}</div>${removedBadge}</td>
       <td style="color:var(--text-2);">${s.market}</td>
       <td>${cardBadge(card)}</td>
