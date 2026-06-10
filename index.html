@@ -2118,7 +2118,7 @@ async function backfillClaimEmails(btn) {
 }
 
 async function backfillRevAndPushPadma(btn) {
-  if (!confirm('This will:\n1. Backfill Rev Value (col W) on 13 historical PV reports\n2. Push 2 new PV reports for Padma (Death Ave + Taqueria On Tenth) if not already there\n\nSafe to re-click — duplicates skipped.\n\nProceed?')) return;
+  if (!confirm('This will push any missing PV reports from the backfill list into the sheet.\n\nIt does NOT touch existing rows or rev values.\n\nSafe to re-click — duplicates skipped.\n\nProceed?')) return;
   btn.disabled = true;
   const origText = btn.textContent;
   btn.textContent = 'Working…';
@@ -2131,20 +2131,10 @@ async function backfillRevAndPushPadma(btn) {
     const nameIdx = h.indexOf('Name');
     const norm = s => String(s || '').toLowerCase().trim();
 
-    // Step 1: backfill Rev Value on existing PV reports
-    for (let i = 1; i < vals.length; i++) {
-      const row = vals[i];
-      if (!row || !row[0]) continue;
-      const rName = norm(row[restIdx]);
-      const card = row[cardIdx];
-      const match = HISTORICAL_REV_BACKFILL.find(b => norm(b.restaurant) === rName && b.card === card);
-      if (match) {
-        await updateSheetCell(`PV Reports!W${i + 1}`, String(match.rev));
-        updated++;
-      }
-    }
+    // Rev Value backfill is DISABLED — we never overwrite existing rev values on this button.
+    // If you need to bulk-edit rev values, do it manually in the PV Reports sheet.
 
-    // Step 2: push Padma's PVs, but skip if same (name + restaurant + card) already exists
+    // Push new PVs from PADMA_PV_REPORTS_TO_PUSH, but skip if same (name + restaurant + card) already exists
     const existsKey = (n, r, c) => `${norm(n)}|${norm(r)}|${norm(c)}`;
     const existing = new Set();
     for (let i = 1; i < vals.length; i++) {
@@ -2158,7 +2148,7 @@ async function backfillRevAndPushPadma(btn) {
       await appendToSheet('PV Reports', row);
       pushed++;
     }
-    alert(`✅ Done!\n• Updated Rev Value on ${updated} existing PV reports\n• Pushed ${pushed} new PV reports for Padma\n• Skipped ${skipped} (already in sheet)\n\nReloading…`);
+    alert(`✅ Done!\n• Pushed ${pushed} new PV report(s)\n• Skipped ${skipped} (already in sheet)\n\nNo existing rows were modified.\n\nReloading…`);
     await loadSpots();
   } catch(e) {
     alert('❌ Backfill failed: ' + e.message);
