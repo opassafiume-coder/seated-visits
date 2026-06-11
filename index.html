@@ -1922,7 +1922,11 @@ function renderAdmin() {
       const c = slot.claimant;
       const nameMatch = !nameFilter || (c && (c.name || '').toLowerCase().includes(nameFilter));
       const isRemoved = s._orphan || slot._restaurantRemoved;
-      const hasPv = pvReports.some(r => r.restaurant === s.name && r.card === card);
+      const claimantEmail = (slot.claimant && slot.claimant.email || '').toLowerCase();
+      const hasPv = pvReports.some(r =>
+        r.restaurant === s.name && r.card === card &&
+        ((r.email || '').toLowerCase() === claimantEmail || (r.employeeEmail || '').toLowerCase() === claimantEmail)
+      );
 
       // Special filter: removed-restaurant claims with no PV submitted yet
       if (sFilter === '__removed_no_pv') {
@@ -1962,7 +1966,11 @@ function renderAdmin() {
     const c = slot.claimant;
     const claimedDate = c && c.claimedAt ? new Date(c.claimedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     // Only flag "RESTAURANT REMOVED" when there's no PV report for this claim — once the visit happened we don't care anymore
-    const hasPvReport = pvReports.some(r => r.restaurant === s.name && r.card === card);
+    const slotClaimantEmail = (slot.claimant && slot.claimant.email || '').toLowerCase();
+    const hasPvReport = pvReports.some(r =>
+      r.restaurant === s.name && r.card === card &&
+      ((r.email || '').toLowerCase() === slotClaimantEmail || (r.employeeEmail || '').toLowerCase() === slotClaimantEmail)
+    );
     const removedBadge = ((s._orphan || slot._restaurantRemoved) && !hasPvReport) ? `<div style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF0EE;color:#8C2418;margin-top:4px;font-family:'DM Mono',monospace;letter-spacing:0.04em;">⚠️ RESTAURANT REMOVED</div>` : '';
     html += `<tr${((s._orphan || slot._restaurantRemoved) && !hasPvReport) ? ' style="background:#FFFBF7;"' : ''}>
       <td><div style="font-weight:500;font-size:13px;">${s.name}</div><div style="font-size:11px;color:var(--text-3);font-family:'DM Mono',monospace;margin-top:2px;">${s.addr}</div>${removedBadge}</td>
@@ -1971,7 +1979,14 @@ function renderAdmin() {
       <td>${statusBadge(slot.status)}</td>
       <td style="font-size:12px;">${c ? `<div style="font-weight:500;">${c.name}</div><div style="color:var(--text-2);margin-top:1px;">${c.email}</div>${c.employeeEmail ? `<div style="color:var(--text-3);margin-top:1px;">Employee: ${c.employeeEmail}</div>` : ''}<div style="color:var(--text-3);margin-top:1px;">${c.rel}${claimedDate ? ' · ' + claimedDate : ''}</div>` : '<span style="color:var(--text-3);">—</span>'}</td>
       <td style="font-size:13px;font-weight:600;color:#1A5C36;">${(() => { const locked = c && c.reimb != null ? c.reimb : (s.reimb && s.reimb[card] ? s.reimb[card] : null); if (locked != null && c && c.reimb == null && slot._sheetRow) { updateSheetCell(`Claims!L${slot._sheetRow}`, String(locked)); c.reimb = locked; } return locked != null ? `$${locked}` : '—'; })()}</td>
-      <td style="text-align:center;font-size:16px;">${pvReports.some(r => r.restaurant === s.name && r.card === card) ? '✅' : ''}</td>
+      <td style="text-align:center;font-size:16px;">${(() => {
+        const ce = (c && c.email || '').toLowerCase();
+        if (!ce) return '';
+        return pvReports.some(r =>
+          r.restaurant === s.name && r.card === card &&
+          ((r.email || '').toLowerCase() === ce || (r.employeeEmail || '').toLowerCase() === ce)
+        ) ? '✅' : '';
+      })()}</td>
       <td>
         ${slot.status === 'Open' ? `<button class="action-btn" onclick="manualClaim(${s.id},'${card}')">Manual claim</button>` : ''}
         ${slot.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Confirmed')">Confirm</button>` : ''}
