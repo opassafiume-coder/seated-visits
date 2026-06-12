@@ -2403,9 +2403,10 @@ function updateStats() {
   const toVal   = document.getElementById('impact-to')?.value || '';
   const fromTs  = fromVal ? new Date(fromVal + 'T00:00:00').getTime() : -Infinity;
   const toTs    = toVal   ? new Date(toVal   + 'T23:59:59').getTime() : Infinity;
+  // Filter by SUBMISSION date (matches cowork's weekly leaderboard math — counts every PV submitted in the window)
   const validReports = (pvReports || []).filter(r => {
     if ((r.adminStatus || 'New') === 'Voided') return false;
-    const ts = new Date(r.visitDate || r.submittedAt || 0).getTime();
+    const ts = new Date(r.submittedAt || r.visitDate || 0).getTime();
     if (isNaN(ts)) return true;
     return ts >= fromTs && ts <= toTs;
   });
