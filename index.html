@@ -2594,9 +2594,13 @@ function renderPvClaimsList() {
   const list = document.getElementById('pv-claims-list');
   const matches = window._pvMatches || [];
   list.innerHTML = matches.map((m, i) => {
-    const alreadySubmitted = pvReports.some(r =>
+    // Must match restaurant + card AND the claimant's email — otherwise a previous user's PV
+    // for the same resto+card would wrongly block this claim.
+    const claimEmail = (m.claimant && m.claimant.email || '').toLowerCase();
+    const alreadySubmitted = !!claimEmail && pvReports.some(r =>
       (r.restaurant || '').toLowerCase() === (m.spot.name || '').toLowerCase() &&
-      r.card === m.card
+      r.card === m.card &&
+      ((r.email || '').toLowerCase() === claimEmail || (r.employeeEmail || '').toLowerCase() === claimEmail)
     );
     const greyStyle = alreadySubmitted
       ? 'opacity:0.55;background:#F2F1EE;cursor:default;'
