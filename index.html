@@ -944,11 +944,17 @@ async function appendToSheet(tabName, row) {
 
 async function updateSheetCell(range, value) {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-  const res = await fetch(url, {
+  const doFetch = () => fetch(url, {
     method: 'PUT',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: [[value]] })
   });
+  let res = await doFetch();
+  // Token expired — refresh and retry once
+  if (res.status === 401) {
+    try { accessToken = await refreshAccessToken(); } catch(_) {}
+    res = await doFetch();
+  }
   if (!res.ok) throw new Error(`Sheet update "${range}" failed: ${res.status}`);
 }
 
