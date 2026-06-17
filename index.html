@@ -294,7 +294,7 @@
               <div style="background:#EBF3FF;border:1px solid #A8C8F0;border-radius:8px;padding:10px 14px;font-size:13px;color:#1A4A8A;">
                 <strong>Reimbursement:</strong> <span id="pv-reimb-display">—</span>
                 <div style="opacity:0.9;margin-top:6px;">
-                  <strong>What happens next:</strong> Olivia will review your submission. Pending approval, she'll email (or text) you a <strong>Tremendous</strong> reimbursement link. Click <strong>Accept</strong>, enter your Venmo handle on the Tremendous page, and the money transfers straight into your Venmo account.
+                  <strong>What happens next:</strong> Olivia will review your submission. Pending approval, she'll email (or text) you a reimbursement link. Click <strong>Accept</strong>, enter your Venmo handle on the page, and the money transfers straight into your Venmo account.
                 </div>
               </div>
             </div>
@@ -2785,7 +2785,7 @@ async function _doSubmitPostVisit() {
     amount: `$${parseFloat(amount).toFixed(2)}`,
     reimb: pvReimb,
     notes: notes || 'None',
-    next_steps: 'Olivia will review your submission. Pending approval, she will email (or text) you a Tremendous link for your reimbursement. Click Accept on that link, enter your Venmo handle on the Tremendous page, and the money will transfer straight into your Venmo account.',
+    next_steps: 'Olivia will review your submission. Pending approval, she will email (or text) you a reimbursement link. Click Accept on that link, enter your Venmo handle on the page, and the money will transfer straight into your Venmo account.',
     receipt_url: receiptUrl || 'Not uploaded',
     ccpost_url: ccpostUrl || 'Not uploaded',
     claim_time: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
