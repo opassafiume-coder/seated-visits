@@ -926,11 +926,17 @@ let selectedCard = null;
 
 async function appendToSheet(tabName, row) {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(tabName + '!A:Z')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-  const res = await fetch(url, {
+  const doFetch = () => fetch(url, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: [row] })
   });
+  let res = await doFetch();
+  // Token expired mid-session — refresh and retry once
+  if (res.status === 401) {
+    try { accessToken = await refreshAccessToken(); } catch(_) {}
+    res = await doFetch();
+  }
   if (!res.ok) throw new Error(`Sheet append to "${tabName}" failed: ${res.status}`);
   // Parse the new row's 1-indexed sheet row from the response (updatedRange like "Phone Tests!A45:L45")
   try {
