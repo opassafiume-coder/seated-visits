@@ -157,6 +157,16 @@
 
 <div class="container">
   <div id="view-browse" class="view active">
+    <!-- ⚠️ CLAIMS PAUSED BANNER — remove this block to re-enable claims -->
+    <div id="claims-paused-banner" style="background:#FFF8EC;border:2px solid #F5C97A;border-radius:12px;padding:20px 24px;margin-bottom:1.5rem;text-align:center;">
+      <div style="font-size:22px;font-weight:600;color:#7A4E00;margin-bottom:8px;">🚧 Claims are temporarily paused</div>
+      <div style="font-size:14px;color:#7A4E00;line-height:1.5;max-width:600px;margin:0 auto;">
+        We're resolving an issue with our restaurant data — new claims are paused while we sort it out.<br><br>
+        <strong>If you've already claimed a spot,</strong> you're all good — go enjoy your visit and submit your <a href="#" onclick="switchTab('postvisit');return false;" style="color:#7A4E00;text-decoration:underline;font-weight:600;">post-visit report</a> as usual when you're done.<br><br>
+        Questions? Reach out to Olivia: <strong>(502) 296-9770</strong> · <a href="mailto:opassafiume@seatedapp.io" style="color:#7A4E00;">opassafiume@seatedapp.io</a>
+      </div>
+    </div>
+    <div id="claims-content" style="display:none;">
     <div id="map"></div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
       <button id="near-me-btn" onclick="zoomMapToUserLocation()" style="font-family:'DM Sans',sans-serif;font-size:14px;padding:8px 14px;border:1px solid var(--border);border-radius:6px;background:#1A1814;color:#fff;cursor:pointer;font-weight:500;">📍 Near me</button>
@@ -238,6 +248,7 @@
         <button class="btn-ghost" onclick="showSignupList()" style="width:100%;">← Back to sign-up list</button>
       </div>
     </div>
+    </div> <!-- /claims-content -->
   </div>
 
   <div id="view-postvisit" class="view">
