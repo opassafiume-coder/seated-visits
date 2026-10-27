@@ -1016,8 +1016,8 @@ async function loadAllDataFromSheets() {
         const card = row[idx('Card')] || '';
         if (!rid || !card) return;
         if (!claimsMap[rid]) claimsMap[rid] = {};
-        if (!claimsMap[rid][card]) { // first row wins
-          claimsMap[rid][card] = {
+        // last row wins — so a new Claim after an old Closed row correctly takes precedence
+        claimsMap[rid][card] = {
             status,
             _sheetRow: i + 2, // 1-indexed + header row
             claimant: {
@@ -1032,8 +1032,7 @@ async function loadAllDataFromSheets() {
               restaurantAddr: row[idx('Address')] || '',
               restaurantMarket: row[idx('City')] || ''
             }
-          };
-        }
+        };
       });
     }
   } catch(e) { console.error('Failed to load Claims tab:', e); }
@@ -1256,7 +1255,7 @@ function renderMap() {
   mapMarkers.forEach(m => map.removeLayer(m));
   mapMarkers = [];
   const selectedMarket = document.getElementById('browse-market-filter') ? document.getElementById('browse-market-filter').value : '';
-  const openSpots = spots.filter(s => s.cards.some(card => s.cardSlots[card]?.status === 'Open'));
+  const openSpots = spots.filter(s => s.cards.some(card => isSlotAvailable(s.cardSlots[card], s.name, card)));
 
   openSpots.forEach(s => {
     const isSelected = !selectedMarket || s.market === selectedMarket;
@@ -1270,7 +1269,7 @@ function renderMap() {
       opacity: 1,
       fillOpacity: isSelected ? 0.9 : 0.4
     }).addTo(map);
-    const openCards = s.cards.filter(c => s.cardSlots[c]?.status === 'Open');
+    const openCards = s.cards.filter(c => isSlotAvailable(s.cardSlots[c], s.name, c));
     const distStr = userLatLng ? ` · ${distanceMiles(userLatLng.lat, userLatLng.lng, s.lat, s.lng).toFixed(1)} mi away` : '';
     marker.bindTooltip(`<strong>${s.name}</strong><br>${s.market} · ${openCards.join(', ')}${distStr}`, { direction: 'top', offset: [0, -8] });
     if (isSelected) {
@@ -1649,6 +1648,24 @@ function statusBadge(s) {
   return `<span class="badge ${map[s]}">${s}</span>`;
 }
 
+function isSlotAvailable(slot, restaurantName, card) {
+  if (!slot) return false;
+  if (slot.status === 'Open') return true;
+  if (slot.status === 'Claimed' || slot.status === 'Confirmed') return false;
+  if (slot.status === 'Closed') {
+    const pv = pvReports.find(r =>
+      r.restaurant.trim().toLowerCase() === (restaurantName || '').trim().toLowerCase() &&
+      r.card.trim().toLowerCase() === (card || '').trim().toLowerCase()
+    );
+    if (!pv) return true;
+    const pvDate = new Date(pv.submittedAt);
+    if (isNaN(pvDate.getTime())) return true;
+    const daysSince = (Date.now() - pvDate.getTime()) / (1000 * 60 * 60 * 24);
+    return daysSince >= 90;
+  }
+  return false;
+}
+
 function renderBrowse() {
   const selectedMarket = document.getElementById('browse-market-filter') ? document.getElementById('browse-market-filter').value : '';
   const selectedCard = document.getElementById('browse-card-filter') ? document.getElementById('browse-card-filter').value : '';
@@ -1665,7 +1682,7 @@ function renderBrowse() {
   if (userLatLng && !selectedMarket) {
     const nearby = spots
       .filter(s => !selectedCard || s.cards.includes(selectedCard))
-      .filter(s => s.cards.some(c => s.cardSlots[c]?.status === 'Open'))
+      .filter(s => s.cards.some(c => isSlotAvailable(s.cardSlots[c], s.name, c)))
       .filter(s => s._distMi <= 50)
       .sort((a, b) => a._distMi - b._distMi)
       .slice(0, 10);
@@ -1680,10 +1697,10 @@ function renderBrowse() {
     if (items.length === 0) return;
     html += `<div class="market-label">${m}</div>`;
     items.forEach(s => {
-      const allTaken = s.cards.every(card => s.cardSlots[card]?.status !== 'Open');
+      const allTaken = s.cards.every(card => !isSlotAvailable(s.cardSlots[card], s.name, card));
       const cardButtons = s.cards.map(card => {
         const slot = s.cardSlots[card];
-        const isTaken = slot?.status !== 'Open';
+        const isTaken = !isSlotAvailable(slot, s.name, card);
         const reimb = s.reimb && s.reimb[card] ? s.reimb[card] : 0;
         // Don't show open claim buttons for cards with no reimbursement configured
         if (!isTaken && reimb === 0) return '';
@@ -1718,10 +1735,10 @@ function renderBrowse() {
 
 // Helper: render one restaurant card HTML — used by both the city loop and the "Near me" section
 function renderRestoCardHTML(s) {
-  const allTaken = s.cards.every(card => s.cardSlots[card]?.status !== 'Open');
+  const allTaken = s.cards.every(card => !isSlotAvailable(s.cardSlots[card], s.name, card));
   const cardButtons = s.cards.map(card => {
     const slot = s.cardSlots[card];
-    const isTaken = slot?.status !== 'Open';
+    const isTaken = !isSlotAvailable(slot, s.name, card);
     const reimb = s.reimb && s.reimb[card] ? s.reimb[card] : 0;
     if (!isTaken && reimb === 0) return '';
     const reimbLabel = reimb > 0 ? `<div style="font-size:11px;color:var(--text-3);margin-top:2px;text-align:center;">up to $${reimb}</div>` : '';
@@ -1835,13 +1852,13 @@ async function _doSubmitClaim() {
   if (isFriendFamily && !employeeEmail.toLowerCase().endsWith('@seatedapp.io')) { alert('Employee\'s Seated email must be a @seatedapp.io address.'); return; }
   const s = spots.find(r => r.id === selectedId);
   const slot = s.cardSlots[selectedCard];
-  if (slot.status !== 'Open') { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
+  if (!isSlotAvailable(slot, s.name, selectedCard)) { alert('Sorry, this spot was just taken!'); renderBrowse(); return; }
 
   // Re-read Claims tab to prevent race condition double-claims
   try {
     const freshClaimsMap = await loadAllDataFromSheets().then(d => d.claimsMap);
     const freshSlot = freshClaimsMap[selectedId] && freshClaimsMap[selectedId][selectedCard];
-    if (freshSlot && freshSlot.status !== 'Open') {
+    if (freshSlot && !isSlotAvailable(freshSlot, s.name, selectedCard)) {
       alert('Sorry, this spot was just claimed by someone else!');
       await loadSpots();
       return;
@@ -2502,7 +2519,7 @@ function updateBrowseCount() {
     s.cards.forEach(c => {
       if (card && c !== card) return;
       totalSlots++;
-      if (s.cardSlots[c]?.status === 'Open') openSlots++;
+      if (isSlotAvailable(s.cardSlots[c], s.name, c)) openSlots++;
     });
   });
   let label = openSlots + ' of ' + totalSlots + ' slots open';
