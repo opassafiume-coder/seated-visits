@@ -2003,7 +2003,7 @@ function renderAdmin() {
       <td>
         ${slot.status === 'Open' ? `<button class="action-btn" onclick="manualClaim(${s.id},'${card}')">Manual claim</button>` : ''}
         ${slot.status === 'Claimed' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Confirmed')">Confirm</button>` : ''}
-        ${['Claimed','Confirmed'].includes(slot.status) ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Open')">Close</button>` : ''}
+        ${['Claimed','Confirmed'].includes(slot.status) ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Closed')">Close</button>` : ''}
         ${slot.status !== 'Open' ? `<button class="action-btn" onclick="setStatus(${s.id},'${card}','Open')">Reopen</button>` : ''}
       </td>
     </tr>`;
