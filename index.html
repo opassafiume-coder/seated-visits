@@ -1653,12 +1653,17 @@ function isSlotAvailable(slot, restaurantName, card) {
   if (slot.status === 'Open') return true;
   if (slot.status === 'Claimed' || slot.status === 'Confirmed') return false;
   if (slot.status === 'Closed') {
-    const pv = pvReports.find(r =>
-      r.restaurant.trim().toLowerCase() === (restaurantName || '').trim().toLowerCase() &&
-      r.card.trim().toLowerCase() === (card || '').trim().toLowerCase()
+    const restNorm = (restaurantName || '').trim().toLowerCase();
+    const cardNorm = (card || '').trim().toLowerCase();
+    const matches = pvReports.filter(r =>
+      r.restaurant.trim().toLowerCase() === restNorm &&
+      r.card.trim().toLowerCase() === cardNorm
     );
-    if (!pv) return true;
-    const pvDate = new Date(pv.submittedAt);
+    if (matches.length === 0) return true;
+    const latestPv = matches.reduce((a, b) =>
+      new Date(b.submittedAt) > new Date(a.submittedAt) ? b : a
+    );
+    const pvDate = new Date(latestPv.submittedAt);
     if (isNaN(pvDate.getTime())) return true;
     const daysSince = (Date.now() - pvDate.getTime()) / (1000 * 60 * 60 * 24);
     return daysSince >= 90;
