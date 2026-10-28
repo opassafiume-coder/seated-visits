@@ -1659,7 +1659,7 @@ function isSlotAvailable(slot, restaurantName, card) {
       r.restaurant.trim().toLowerCase() === restNorm &&
       r.card.trim().toLowerCase() === cardNorm
     );
-    if (matches.length === 0) return false;
+    if (matches.length === 0) return true;
     const latestPv = matches.reduce((a, b) =>
       new Date(b.submittedAt) > new Date(a.submittedAt) ? b : a
     );
