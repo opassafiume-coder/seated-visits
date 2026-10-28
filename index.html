@@ -1698,7 +1698,7 @@ function renderBrowse() {
   }
   markets.forEach(m => {
     if (selectedMarket && m !== selectedMarket) return;
-    const items = spots.filter(s => s.market === m && (!selectedCard || s.cards.includes(selectedCard)));
+    const items = spots.filter(s => s.market === m && (!selectedCard || s.cards.includes(selectedCard)) && s.cards.some(c => isSlotAvailable(s.cardSlots[c], s.name, c)));
     if (items.length === 0) return;
     html += `<div class="market-label">${m}</div>`;
     items.forEach(s => {
