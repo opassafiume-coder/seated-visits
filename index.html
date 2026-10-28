@@ -2416,8 +2416,18 @@ async function setStatus(id, card, status) {
         }
       }
     } else {
-      const sheetRow = slot._sheetRow;
-      if (sheetRow) await updateSheetCell(`Claims!F${sheetRow}`, status);
+      // Update ALL rows for this restaurant+card to avoid stale duplicates winning with last-row-wins
+      const vals = await fetchSheetValues('Claims!A:F');
+      if (vals.length > 1) {
+        const h = vals[0];
+        const ridIdx = h.indexOf('Restaurant ID');
+        const cardIdx = h.indexOf('Card');
+        for (let i = 1; i < vals.length; i++) {
+          if (parseInt(vals[i][ridIdx]) === id && (vals[i][cardIdx] || '') === card) {
+            await updateSheetCell(`Claims!F${i + 1}`, status);
+          }
+        }
+      }
     }
   } catch(e) { alert('Failed to update status in sheet: ' + e.message); return; }
   // Update in-memory
