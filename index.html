@@ -1650,21 +1650,20 @@ function statusBadge(s) {
 
 function isSlotAvailable(slot, restaurantName, card) {
   if (!slot) return false;
-  if (slot.status === 'Open') return true;
   if (slot.status === 'Claimed' || slot.status === 'Confirmed') return false;
-  if (slot.status === 'Closed') {
+  if (slot.status === 'Open' || slot.status === 'Closed') {
     const restNorm = (restaurantName || '').trim().toLowerCase();
     const cardNorm = (card || '').trim().toLowerCase();
     const matches = pvReports.filter(r =>
       r.restaurant.trim().toLowerCase() === restNorm &&
       r.card.trim().toLowerCase() === cardNorm
     );
-    if (matches.length === 0) return true;
+    if (matches.length === 0) return slot.status === 'Open'; // no PV: open slots are available, closed reopen
     const latestPv = matches.reduce((a, b) =>
       new Date(b.submittedAt) > new Date(a.submittedAt) ? b : a
     );
     const pvDate = new Date(latestPv.submittedAt);
-    if (isNaN(pvDate.getTime())) return true;
+    if (isNaN(pvDate.getTime())) return slot.status === 'Open';
     const daysSince = (Date.now() - pvDate.getTime()) / (1000 * 60 * 60 * 24);
     return daysSince >= 90;
   }
@@ -2422,9 +2421,13 @@ async function setStatus(id, card, status) {
         const h = vals[0];
         const ridIdx = h.indexOf('Restaurant ID');
         const cardIdx = h.indexOf('Card');
+        const statusIdx = h.indexOf('Status');
         for (let i = 1; i < vals.length; i++) {
           if (parseInt(vals[i][ridIdx]) === id && (vals[i][cardIdx] || '') === card) {
-            await updateSheetCell(`Claims!F${i + 1}`, status);
+            const existingStatus = (vals[i][statusIdx] || '').trim();
+            if (existingStatus && existingStatus !== 'Open') {
+              await updateSheetCell(`Claims!F${i + 1}`, status);
+            }
           }
         }
       }
