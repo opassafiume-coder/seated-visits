@@ -1670,12 +1670,12 @@ function isSlotAvailable(slot, restaurantName, card) {
   return false;
 }
 
-// Whether a restaurant slot should appear on the browse page (Open slots always show,
-// even if greyed out; Closed slots only show when 90+ days old)
+// Whether a restaurant slot should appear on the browse page at all.
+// Open/Claimed/Confirmed show greyed out; Closed only shows when 90+ days old.
 function shouldShowOnBrowse(slot, restaurantName, card) {
   if (!slot) return false;
-  if (slot.status === 'Open') return true;
-  return isSlotAvailable(slot, restaurantName, card);
+  if (slot.status === 'Open' || slot.status === 'Claimed' || slot.status === 'Confirmed') return true;
+  return isSlotAvailable(slot, restaurantName, card); // Closed: hide until 90 days pass
 }
 
 function renderBrowse() {
