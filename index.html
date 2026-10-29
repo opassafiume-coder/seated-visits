@@ -1670,6 +1670,14 @@ function isSlotAvailable(slot, restaurantName, card) {
   return false;
 }
 
+// Whether a restaurant slot should appear on the browse page (Open slots always show,
+// even if greyed out; Closed slots only show when 90+ days old)
+function shouldShowOnBrowse(slot, restaurantName, card) {
+  if (!slot) return false;
+  if (slot.status === 'Open') return true;
+  return isSlotAvailable(slot, restaurantName, card);
+}
+
 function renderBrowse() {
   const selectedMarket = document.getElementById('browse-market-filter') ? document.getElementById('browse-market-filter').value : '';
   const selectedCard = document.getElementById('browse-card-filter') ? document.getElementById('browse-card-filter').value : '';
@@ -1686,7 +1694,7 @@ function renderBrowse() {
   if (userLatLng && !selectedMarket) {
     const nearby = spots
       .filter(s => !selectedCard || s.cards.includes(selectedCard))
-      .filter(s => s.cards.some(c => isSlotAvailable(s.cardSlots[c], s.name, c)))
+      .filter(s => s.cards.some(c => shouldShowOnBrowse(s.cardSlots[c], s.name, c)))
       .filter(s => s._distMi <= 50)
       .sort((a, b) => a._distMi - b._distMi)
       .slice(0, 10);
@@ -1697,7 +1705,7 @@ function renderBrowse() {
   }
   markets.forEach(m => {
     if (selectedMarket && m !== selectedMarket) return;
-    const items = spots.filter(s => s.market === m && (!selectedCard || s.cards.includes(selectedCard)) && s.cards.some(c => isSlotAvailable(s.cardSlots[c], s.name, c)));
+    const items = spots.filter(s => s.market === m && (!selectedCard || s.cards.includes(selectedCard)) && s.cards.some(c => shouldShowOnBrowse(s.cardSlots[c], s.name, c)));
     if (items.length === 0) return;
     html += `<div class="market-label">${m}</div>`;
     items.forEach(s => {
